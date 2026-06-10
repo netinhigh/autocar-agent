@@ -905,6 +905,150 @@ body.context-hidden .workspace {
   min-width: 132px;
 }
 
+.start-session-banner .primary-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+  box-shadow: none;
+}
+
+/* 横幅按钮组 */
+.banner-actions {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  flex-shrink: 0;
+}
+
+/* 锁定/解锁按钮 */
+.lock-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 132px;
+  padding: 9px 20px;
+  border: 1px solid rgba(245, 158, 11, 0.4);
+  border-radius: 8px;
+  background: rgba(245, 158, 11, 0.08);
+  color: #fbbf24;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.25s ease;
+}
+
+.lock-btn:hover {
+  background: rgba(245, 158, 11, 0.18);
+  border-color: rgba(245, 158, 11, 0.65);
+  box-shadow: 0 0 18px rgba(245, 158, 11, 0.12);
+}
+
+.lock-btn.locked {
+  border-color: rgba(52, 211, 153, 0.45);
+  background: rgba(52, 211, 153, 0.1);
+  color: #34d399;
+}
+
+.lock-btn.locked:hover {
+  background: rgba(52, 211, 153, 0.2);
+  border-color: rgba(52, 211, 153, 0.7);
+  box-shadow: 0 0 18px rgba(52, 211, 153, 0.14);
+}
+
+/* 密码展示 */
+.lock-password-display {
+  margin-top: 12px;
+  padding: 10px 14px;
+  border-radius: 8px;
+  border: 1px dashed rgba(34, 211, 238, 0.28);
+  background: rgba(34, 211, 238, 0.06);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.lock-password-display.hidden {
+  display: none;
+}
+
+.lock-password-label {
+  color: #67e8f9;
+  font-size: 13px;
+  white-space: nowrap;
+}
+
+.lock-password-code {
+  font-family: 'Courier New', Courier, monospace;
+  font-size: 20px;
+  font-weight: 700;
+  color: #fbbf24;
+  letter-spacing: 6px;
+  user-select: all;
+}
+
+/* 密码输入框 */
+.password-input {
+  width: 100%;
+  max-width: 240px;
+  padding: 10px 16px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: rgba(3, 10, 22, 0.46);
+  color: var(--ink);
+  font-size: 20px;
+  text-align: center;
+  letter-spacing: 8px;
+  outline: none;
+  transition: border-color 0.2s;
+}
+
+.password-input:focus {
+  border-color: rgba(103, 232, 249, 0.72);
+  box-shadow: 0 0 0 3px rgba(34, 211, 238, 0.12);
+}
+
+/* 解锁错误提示 */
+.unlock-error {
+  color: #fb4d6d;
+  font-size: 13px;
+  margin-top: 8px;
+}
+
+.unlock-error.hidden {
+  display: none;
+}
+
+/* 表单锁定状态 */
+.brief-form.locked label {
+  pointer-events: none;
+}
+
+.brief-form.locked input,
+.brief-form.locked textarea {
+  opacity: 0.55;
+  cursor: not-allowed;
+  border-color: rgba(255, 255, 255, 0.06);
+  background: rgba(3, 10, 22, 0.28);
+}
+
+.brief-form.locked button[type="submit"] {
+  opacity: 0.4;
+  cursor: not-allowed;
+  pointer-events: none;
+}
+
+/* 提纲卡片锁定 */
+.outline-card.locked {
+  opacity: 0.55;
+  pointer-events: none;
+}
+
+/* 用户管理按钮锁定 */
+.audience-section.locked .section-title button {
+  opacity: 0.4;
+  pointer-events: none;
+}
+
 .brief-form {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));

@@ -140,6 +140,9 @@ let audioAnalyser = null;       // AnalyserNode
 let audioDataArray = null;      // 音频频域数据
 let audioAnimId = null;         // requestAnimationFrame ID
 let isCameraActive = false;     // 摄像头是否已开启
+// 调研准备锁定状态
+let preparationLocked = false;  // 是否已锁定准备
+let lockPassword = '';          // 生成的数字密码
 
 // 调研对象详细信息数据结构
 const audienceDetailsTemplate = {
@@ -208,7 +211,24 @@ const els = {
   videoFeed: document.getElementById("videoFeed"),
   audioWave: document.getElementById("audioWave"),
   faceUserA: document.getElementById("faceUserA"),
-  faceModerator: document.getElementById("faceModerator")
+  faceModerator: document.getElementById("faceModerator"),
+  // 准备锁定相关
+  lockBtn: document.getElementById("lockBtn"),
+  lockBtnText: document.getElementById("lockBtnText"),
+  bannerTitle: document.getElementById("bannerTitle"),
+  bannerDesc: document.getElementById("bannerDesc"),
+  bannerEyebrow: document.getElementById("bannerEyebrow"),
+  lockPasswordDisplay: document.getElementById("lockPasswordDisplay"),
+  lockPasswordCode: document.getElementById("lockPasswordCode"),
+  unlockModal: document.getElementById("unlockModal"),
+  closeUnlockModalBtn: document.getElementById("closeUnlockModalBtn"),
+  unlockPasswordInput: document.getElementById("unlockPasswordInput"),
+  unlockError: document.getElementById("unlockError"),
+  cancelUnlockBtn: document.getElementById("cancelUnlockBtn"),
+  confirmUnlockBtn: document.getElementById("confirmUnlockBtn"),
+  briefForm: document.getElementById("briefForm"),
+  outlineCard: document.querySelector(".outline-card"),
+  audienceSection: document.querySelector(".audience-section")
 };
 
 function renderOutline(items = outlineDefaults) {
@@ -439,6 +459,7 @@ function setAvailableStages(stages, activeStage) {
 function configureSessionStages(session) {
   const status = session?.status || "待开始";
   pendingSessionStarted = false;
+  resetPreparationLock();
   els.startSessionBanner.classList.add("hidden");
 
   if (status === "已完成") {
@@ -457,6 +478,140 @@ function configureSessionStages(session) {
 
   setAvailableStages(["prepare", "live", "report"], "live");
   updateContextVisibility();
+}
+
+// ===== 调研准备锁定/解锁 =====
+
+// 生成6位随机数字密码
+function generateLockPassword() {
+  var code = '';
+  for (var i = 0; i < 6; i++) {
+    code += Math.floor(Math.random() * 10);
+  }
+  return code;
+}
+
+// 锁定准备
+function lockPreparation() {
+  if (preparationLocked) return;
+
+  lockPassword = generateLockPassword();
+  preparationLocked = true;
+
+  // 更新横幅
+  els.bannerEyebrow.textContent = 'Ready to launch';
+  els.bannerTitle.textContent = '调研准备已完成';
+  els.bannerDesc.textContent = '点击开始后，系统将开启音视频采集、实时转写、AI主持提醒和报告生成流程。';
+
+  // 显示密码
+  els.lockPasswordCode.textContent = lockPassword;
+  els.lockPasswordDisplay.classList.remove('hidden');
+
+  // 锁定按钮变成解锁状态
+  els.lockBtn.classList.add('locked');
+  els.lockBtnText.textContent = '解锁';
+  els.lockBtn.querySelector('svg').innerHTML = '<rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/><line x1="12" y1="14" x2="12" y2="17" style="stroke:#34d399;stroke-width:2"/>';
+
+  // 启用开始调研按钮
+  els.startSessionBtn.disabled = false;
+
+  // 锁定表单：所有输入框不可编辑
+  els.briefForm.classList.add('locked');
+  els.goalInput.readOnly = true;
+  els.productInput.readOnly = true;
+  els.durationInput.readOnly = true;
+  els.manageAudienceBtn.style.display = 'none';
+
+  // 锁定提纲卡片
+  if (els.outlineCard) els.outlineCard.classList.add('locked');
+  if (els.editOutlineBtn) els.editOutlineBtn.style.display = 'none';
+
+  // 锁定用户管理区域
+  if (els.audienceSection) els.audienceSection.classList.add('locked');
+
+  showToast('调研已锁定，密码：' + lockPassword + '（请妥善保存）', 'success');
+}
+
+// 显示解锁弹窗
+function showUnlockModal() {
+  els.unlockPasswordInput.value = '';
+  els.unlockError.classList.add('hidden');
+  els.unlockModal.classList.remove('hidden');
+  setTimeout(function() { els.unlockPasswordInput.focus(); }, 150);
+}
+
+// 关闭解锁弹窗
+function hideUnlockModal() {
+  els.unlockModal.classList.add('hidden');
+}
+
+// 验证密码并解锁
+function verifyAndUnlock() {
+  var input = els.unlockPasswordInput.value.trim();
+  if (input !== lockPassword) {
+    els.unlockError.classList.remove('hidden');
+    els.unlockPasswordInput.value = '';
+    els.unlockPasswordInput.focus();
+    return;
+  }
+
+  // 密码正确，解锁
+  doUnlock();
+  hideUnlockModal();
+  showToast('调研已解锁，可重新编辑', 'success');
+}
+
+// 执行解锁
+function doUnlock() {
+  preparationLocked = false;
+
+  // 更新横幅
+  els.bannerEyebrow.textContent = 'Preparation';
+  els.bannerTitle.textContent = '调研准备中';
+  els.bannerDesc.textContent = '确认调研信息无误后，请点击锁定按钮完成准备。锁定后信息不可修改，生成数字密码供授权人员查看。';
+
+  // 隐藏密码
+  els.lockPasswordDisplay.classList.add('hidden');
+
+  // 解锁按钮恢复锁定状态
+  els.lockBtn.classList.remove('locked');
+  els.lockBtnText.textContent = '锁定准备';
+  els.lockBtn.querySelector('svg').innerHTML = '<rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/>';
+
+  // 禁用开始调研按钮
+  els.startSessionBtn.disabled = true;
+
+  // 解锁表单
+  els.briefForm.classList.remove('locked');
+  els.goalInput.readOnly = false;
+  els.productInput.readOnly = false;
+  els.durationInput.readOnly = false;
+  els.manageAudienceBtn.style.display = '';
+  if (els.outlineCard) els.outlineCard.classList.remove('locked');
+  if (els.editOutlineBtn) els.editOutlineBtn.style.display = '';
+  if (els.audienceSection) els.audienceSection.classList.remove('locked');
+}
+
+// 重置准备锁定状态（切换会话时调用）
+function resetPreparationLock() {
+  preparationLocked = false;
+  lockPassword = '';
+  els.bannerEyebrow.textContent = 'Preparation';
+  els.bannerTitle.textContent = '调研准备中';
+  els.bannerDesc.textContent = '确认调研信息无误后，请点击锁定按钮完成准备。锁定后信息不可修改，生成数字密码供授权人员查看。';
+  els.lockBtn.classList.remove('locked');
+  els.lockBtnText.textContent = '锁定准备';
+  els.lockBtn.querySelector('svg').innerHTML = '<rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/>';
+  els.lockPasswordDisplay.classList.add('hidden');
+  els.startSessionBtn.disabled = true;
+  els.briefForm.classList.remove('locked');
+  els.goalInput.readOnly = false;
+  els.productInput.readOnly = false;
+  els.durationInput.readOnly = false;
+  els.manageAudienceBtn.style.display = '';
+  if (els.outlineCard) els.outlineCard.classList.remove('locked');
+  if (els.editOutlineBtn) els.editOutlineBtn.style.display = '';
+  if (els.audienceSection) els.audienceSection.classList.remove('locked');
 }
 
 function fillSelect(select, values, defaultLabel) {
@@ -693,6 +848,10 @@ function openSessionDetail(sessionId) {
 
 function startPendingSession() {
   if (!currentSession) return;
+  if (!preparationLocked) {
+    showToast('请先锁定调研准备后再开始调研', 'warning');
+    return;
+  }
   pendingSessionStarted = true;
   currentSession.status = "进行中";
   // 保存用户列表到会话
@@ -1188,6 +1347,7 @@ function resetDemo() {
   renderQuestions();
   renderOutline();
   setAvailableStages(["prepare", "live", "report"], "prepare");
+  resetPreparationLock();
   els.startSessionBanner.classList.add("hidden");
   hideSubNav('qual');
   hideSubNav('quant');
@@ -1241,6 +1401,26 @@ document.getElementById("videoUpload").addEventListener("change", handleVideoUpl
 document.getElementById("copyTranscriptBtn").addEventListener("click", copyTranscript);
 document.getElementById("clearTranscriptBtn").addEventListener("click", clearTranscript);
 els.startSessionBtn.addEventListener("click", startPendingSession);
+
+// 准备锁定/解锁事件
+els.lockBtn.addEventListener("click", function() {
+  if (preparationLocked) {
+    showUnlockModal();
+  } else {
+    lockPreparation();
+  }
+});
+els.closeUnlockModalBtn.addEventListener("click", hideUnlockModal);
+els.cancelUnlockBtn.addEventListener("click", hideUnlockModal);
+els.confirmUnlockBtn.addEventListener("click", verifyAndUnlock);
+els.unlockPasswordInput.addEventListener("keydown", function(e) {
+  if (e.key === 'Enter') verifyAndUnlock();
+});
+// 点击弹窗遮罩关闭
+els.unlockModal.addEventListener("click", function(e) {
+  if (e.target === els.unlockModal) hideUnlockModal();
+});
+
 document.getElementById("generateReportBtn").addEventListener("click", renderReport);
 document.getElementById("resetBtn").addEventListener("click", resetDemo);
 document.getElementById("manualSyncBtn")?.addEventListener("click", function() {
