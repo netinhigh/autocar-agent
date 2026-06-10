@@ -115,7 +115,14 @@ window.Auth = {
       .eq('id', user.id)
       .single();
     
-    if (result.error) return { id: user.id, email: user.email, role: 'user', name: '未知用户', account_status: 'active' };
+    if (result.error) {
+      var displayName = (user.email || '').split('@')[0] || '未知用户';
+      return { id: user.id, email: user.email, role: 'user', name: displayName, account_status: 'active' };
+    }
+    // 如果数据库中有记录但 name 为空，用邮箱前缀填充
+    if (!result.data.name) {
+      result.data.name = (result.data.email || user.email || '').split('@')[0] || '用户';
+    }
     return result.data;
   },
 
