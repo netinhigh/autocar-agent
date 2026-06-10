@@ -9,22 +9,120 @@
   <script src="auth.js"></script>
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
-    body {
-      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif;
-      background: linear-gradient(135deg, #0a1628 0%, #1a2a4a 50%, #0d1f3c 100%);
-      min-height: 100vh;
-      color: #e0e6f0;
+
+    :root {
+      --bg-deep: #050b18;
+      --accent-cyan: #00e5ff;
+      --accent-blue: #2979ff;
+      --accent-purple: #7c4dff;
+      --accent-pink: #ff4081;
+      --glass-bg: rgba(15, 23, 50, 0.7);
+      --glass-border: rgba(255, 255, 255, 0.08);
+      --text-primary: #e8edf5;
+      --text-secondary: #8899bb;
+      --text-muted: #556688;
     }
 
-    /* 顶部导航栏 */
+    body {
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif;
+      min-height: 100vh;
+      color: var(--text-primary);
+      overflow-x: hidden;
+      position: relative;
+    }
+
+    /* ========== 背景图片 ========== */
+    .bg-image {
+      position: fixed;
+      top: 0; left: 0; right: 0; bottom: 0;
+      z-index: -1;
+      background: url('login-bg.jpg') center/cover no-repeat;
+      filter: brightness(0.45) saturate(0.8);
+      transform: scale(1.05);
+    }
+    .bg-overlay {
+      position: fixed;
+      top: 0; left: 0; right: 0; bottom: 0;
+      z-index: -1;
+      background: radial-gradient(ellipse at 30% 50%, rgba(5, 11, 24, 0.3) 0%, rgba(5, 11, 24, 0.75) 70%);
+    }
+
+    @keyframes pulse {
+      0%, 100% { opacity: 0.5; transform: scale(1); }
+      50% { opacity: 1; transform: scale(1.1); }
+    }
+
+    /* ========== Canvas 粒子背景 ========== */
+    #particleCanvas {
+      position: fixed;
+      top: 0; left: 0; right: 0; bottom: 0;
+      z-index: 0;
+      pointer-events: none;
+    }
+
+    /* ========== 网格暗纹 ========== */
+    .grid-bg {
+      position: fixed;
+      top: 0; left: 0; right: 0; bottom: 0;
+      z-index: 0;
+      pointer-events: none;
+      background-image:
+        linear-gradient(rgba(41, 121, 255, 0.03) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(41, 121, 255, 0.03) 1px, transparent 1px);
+      background-size: 60px 60px;
+    }
+
+    /* ========== 光晕 ========== */
+    .orb {
+      position: fixed;
+      z-index: 0;
+      border-radius: 50%;
+      pointer-events: none;
+      filter: blur(120px);
+      opacity: 0.18;
+    }
+    .orb-1 {
+      width: 500px; height: 500px;
+      background: var(--accent-cyan);
+      top: -180px; right: -80px;
+      animation: orbFloat1 12s ease-in-out infinite;
+    }
+    .orb-2 {
+      width: 350px; height: 350px;
+      background: var(--accent-purple);
+      bottom: -120px; left: -60px;
+      animation: orbFloat2 10s ease-in-out infinite;
+    }
+    .orb-3 {
+      width: 250px; height: 250px;
+      background: var(--accent-blue);
+      top: 45%; left: 55%;
+      animation: orbFloat3 14s ease-in-out infinite;
+    }
+
+    @keyframes orbFloat1 {
+      0%, 100% { transform: translate(0, 0) scale(1); }
+      50% { transform: translate(-40px, 30px) scale(1.15); }
+    }
+    @keyframes orbFloat2 {
+      0%, 100% { transform: translate(0, 0) scale(1); }
+      50% { transform: translate(50px, -25px) scale(1.1); }
+    }
+    @keyframes orbFloat3 {
+      0%, 100% { transform: translate(-50%, -50%) scale(1); }
+      50% { transform: translate(calc(-50% + 30px), calc(-50% - 20px)) scale(1.2); }
+    }
+
+    /* ========== 顶部导航栏 ========== */
     .topbar {
       display: flex;
       align-items: center;
       justify-content: space-between;
       padding: 14px 32px;
-      background: rgba(255,255,255,0.03);
-      border-bottom: 1px solid rgba(255,255,255,0.06);
-      backdrop-filter: blur(10px);
+      background: rgba(15, 23, 50, 0.6);
+      border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+      backdrop-filter: blur(20px);
+      -webkit-backdrop-filter: blur(20px);
       position: sticky;
       top: 0;
       z-index: 100;
@@ -36,15 +134,17 @@
     }
     .topbar .brand-logo {
       width: 36px; height: 36px;
-      background: linear-gradient(135deg, #4facfe, #00f2fe);
+      background: linear-gradient(135deg, var(--accent-blue), var(--accent-cyan));
       border-radius: 10px;
       display: flex; align-items: center; justify-content: center;
-      font-size: 18px;
+      font-size: 16px;
+      box-shadow: 0 0 16px rgba(0, 229, 255, 0.25);
     }
     .topbar .brand-name {
       font-size: 15px;
       font-weight: 600;
-      color: #e0e6f0;
+      color: var(--text-primary);
+      letter-spacing: 0.5px;
     }
     .topbar .user-area {
       display: flex;
@@ -53,146 +153,265 @@
     }
     .topbar .user-info {
       font-size: 13px;
-      color: #8899aa;
+      color: var(--text-secondary);
     }
     .topbar .user-info strong {
-      color: #4facfe;
+      color: var(--accent-cyan);
+      font-weight: 600;
     }
     .topbar .btn-logout {
       padding: 7px 18px;
-      background: rgba(255,77,79,0.15);
-      border: 1px solid rgba(255,77,79,0.2);
-      border-radius: 8px;
-      color: #ff7875;
+      background: rgba(255, 64, 129, 0.08);
+      border: 1px solid rgba(255, 64, 129, 0.2);
+      border-radius: 10px;
+      color: #ff80ab;
       font-size: 13px;
       cursor: pointer;
-      transition: all 0.2s;
+      transition: all 0.3s ease;
+      font-family: inherit;
     }
     .topbar .btn-logout:hover {
-      background: rgba(255,77,79,0.25);
+      background: rgba(255, 64, 129, 0.18);
+      border-color: rgba(255, 64, 129, 0.4);
+      box-shadow: 0 0 20px rgba(255, 64, 129, 0.15);
     }
 
-    /* 主内容 */
+    /* ========== 主内容 ========== */
     .main-container {
       display: flex;
       align-items: center;
       justify-content: center;
       min-height: calc(100vh - 67px);
       padding: 40px;
+      position: relative;
+      z-index: 1;
     }
 
     .container {
       text-align: center;
       max-width: 760px;
+      opacity: 0;
+      transform: translateY(20px);
+      animation: cardEnter 0.7s cubic-bezier(0.22, 1, 0.36, 1) 0.15s forwards;
     }
-    .logo {
-      width: 80px;
-      height: 80px;
-      margin: 0 auto 30px;
-      background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
-      border-radius: 20px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      font-size: 36px;
-      box-shadow: 0 8px 32px rgba(79, 172, 254, 0.3);
+    @keyframes cardEnter {
+      to { opacity: 1; transform: translateY(0); }
     }
-    h1 {
-      font-size: 32px;
+
+    /* Logo 区 */
+    .logo-area {
+      text-align: center;
+      margin-bottom: 36px;
+    }
+    .logo-area h1 {
+      font-size: 28px;
       font-weight: 700;
-      margin-bottom: 8px;
-      background: linear-gradient(135deg, #e0e6f0 0%, #4facfe 100%);
+      letter-spacing: 2px;
+      background: linear-gradient(135deg, var(--text-primary) 0%, var(--accent-cyan) 50%, var(--accent-purple) 100%);
       -webkit-background-clip: text;
       -webkit-text-fill-color: transparent;
+      background-clip: text;
+      margin-bottom: 8px;
     }
-    .welcome-msg {
-      color: #8899aa;
-      font-size: 15px;
-      margin-bottom: 40px;
-      line-height: 1.6;
+    .logo-area .subtitle {
+      font-size: 13.5px;
+      color: var(--text-muted);
+      letter-spacing: 1px;
+      font-weight: 400;
     }
-    .welcome-msg strong {
-      color: #4facfe;
+    .subtitle-dot {
+      display: inline-block;
+      width: 5px; height: 5px;
+      background: var(--accent-cyan);
+      border-radius: 50%;
+      margin: 0 8px;
+      vertical-align: middle;
+      box-shadow: 0 0 8px var(--accent-cyan);
+      animation: pulse 2s ease-in-out infinite;
     }
+
+    /* Agent 卡片网格 */
     .cards {
       display: grid;
       grid-template-columns: 1fr 1fr;
       gap: 24px;
     }
+
     .card {
-      background: rgba(255,255,255,0.05);
-      border: 1px solid rgba(255,255,255,0.1);
+      position: relative;
+      background: linear-gradient(145deg,
+        rgba(18, 28, 58, 0.7) 0%,
+        rgba(25, 38, 75, 0.5) 50%,
+        rgba(18, 28, 58, 0.7) 100%
+      );
       border-radius: 16px;
-      padding: 36px 28px;
+      padding: 38px 28px;
       text-decoration: none;
-      color: #e0e6f0;
-      transition: all 0.3s ease;
-      backdrop-filter: blur(10px);
+      color: var(--text-primary);
+      transition: all 0.35s cubic-bezier(0.4, 0, 0.2, 1);
+      backdrop-filter: blur(30px);
+      -webkit-backdrop-filter: blur(30px);
       cursor: pointer;
+      overflow: hidden;
+      box-shadow:
+        0 0 0 1px rgba(41, 121, 255, 0.1),
+        0 4px 24px rgba(0, 0, 0, 0.4);
+      opacity: 0;
+      transform: translateY(15px);
+      animation: fadeUp 0.5s ease forwards;
     }
-    .card:hover {
-      background: rgba(255,255,255,0.1);
-      border-color: rgba(79, 172, 254, 0.4);
-      transform: translateY(-4px);
-      box-shadow: 0 12px 40px rgba(0,0,0,0.3);
-    }
-    .card .icon {
-      font-size: 40px;
-      margin-bottom: 16px;
-    }
-    .card h3 {
-      font-size: 20px;
-      margin-bottom: 10px;
-      color: #4facfe;
-    }
-    .card p {
-      font-size: 14px;
-      color: #8899aa;
-      line-height: 1.5;
+    .card:nth-child(1) { animation-delay: 0.3s; }
+    .card:nth-child(2) { animation-delay: 0.45s; }
+    @keyframes fadeUp {
+      to { opacity: 1; transform: translateY(0); }
     }
 
-    /* 加载状态 */
+    /* 渐变边框 */
+    .card::before {
+      content: '';
+      position: absolute;
+      inset: -1px;
+      border-radius: 17px;
+      background: linear-gradient(135deg,
+        rgba(0, 229, 255, 0.15),
+        rgba(41, 121, 255, 0.05) 25%,
+        rgba(124, 77, 255, 0.12) 50%,
+        rgba(41, 121, 255, 0.05) 75%,
+        rgba(0, 229, 255, 0.15)
+      );
+      background-size: 200% 200%;
+      animation: borderGlow 4s ease-in-out infinite;
+      z-index: -1;
+    }
+    @keyframes borderGlow {
+      0%, 100% { background-position: 0% 50%; }
+      50% { background-position: 100% 50%; }
+    }
+
+    /* 顶部发光线 */
+    .card::after {
+      content: '';
+      position: absolute;
+      top: 0; left: 20px; right: 20px;
+      height: 1px;
+      background: linear-gradient(90deg,
+        transparent,
+        rgba(0, 229, 255, 0.35),
+        rgba(124, 77, 255, 0.35),
+        rgba(0, 229, 255, 0.35),
+        transparent
+      );
+      opacity: 0.6;
+    }
+
+    .card:hover {
+      transform: translateY(-6px);
+      box-shadow:
+        0 0 0 1px rgba(0, 229, 255, 0.25),
+        0 8px 40px rgba(0, 0, 0, 0.6),
+        0 0 60px rgba(0, 229, 255, 0.08);
+    }
+    .card:hover::before {
+      animation-duration: 2s;
+    }
+
+    .card .icon {
+      font-size: 42px;
+      margin-bottom: 16px;
+      display: inline-block;
+      transition: transform 0.3s ease;
+    }
+    .card:hover .icon {
+      transform: scale(1.1);
+    }
+    .card h3 {
+      font-size: 19px;
+      font-weight: 600;
+      margin-bottom: 10px;
+      color: var(--accent-cyan);
+      letter-spacing: 0.5px;
+    }
+    .card p {
+      font-size: 13.5px;
+      color: var(--text-secondary);
+      line-height: 1.7;
+    }
+
+    /* ========== 页脚 ========== */
+    .footer {
+      margin-top: 44px;
+      color: var(--text-muted);
+      font-size: 12px;
+      letter-spacing: 0.5px;
+      opacity: 0;
+      animation: fadeUp 0.5s ease forwards;
+      animation-delay: 0.6s;
+    }
+
+    /* ========== 加载状态 ========== */
     .loading-overlay {
       position: fixed;
       top: 0; left: 0; right: 0; bottom: 0;
-      background: rgba(10,22,40,0.9);
+      background: rgba(5, 11, 24, 0.92);
       display: flex;
+      flex-direction: column;
       align-items: center;
       justify-content: center;
       z-index: 999;
     }
     .loading-spinner {
-      width: 40px; height: 40px;
-      border: 3px solid rgba(255,255,255,0.1);
-      border-top-color: #4facfe;
+      width: 44px; height: 44px;
+      border: 3px solid rgba(255, 255, 255, 0.08);
+      border-top-color: var(--accent-cyan);
       border-radius: 50%;
       animation: spin 0.8s linear infinite;
+      box-shadow: 0 0 24px rgba(0, 229, 255, 0.2);
+    }
+    .loading-text {
+      margin-top: 18px;
+      font-size: 13px;
+      color: var(--text-muted);
+      letter-spacing: 1px;
     }
     @keyframes spin { to { transform: rotate(360deg); } }
 
-    .footer {
-      margin-top: 50px;
-      color: #556;
-      font-size: 12px;
-    }
+    /* ========== 响应式 ========== */
     @media (max-width: 600px) {
       .cards { grid-template-columns: 1fr; }
-      .container { padding: 20px; }
+      .main-container { padding: 24px 16px; }
       .topbar { padding: 12px 16px; }
+      .logo-area h1 { font-size: 22px; }
+      .card { padding: 28px 20px; }
     }
   </style>
 </head>
 <body>
 
+  <!-- 背景图片 -->
+  <div class="bg-image"></div>
+  <div class="bg-overlay"></div>
+
+  <!-- 网格暗纹 -->
+  <div class="grid-bg"></div>
+
+  <!-- Canvas 粒子 -->
+  <canvas id="particleCanvas"></canvas>
+
+  <!-- 光晕 -->
+  <div class="orb orb-1"></div>
+  <div class="orb orb-2"></div>
+  <div class="orb orb-3"></div>
+
   <!-- 加载遮罩 -->
   <div class="loading-overlay" id="loadingOverlay">
     <div class="loading-spinner"></div>
+    <p class="loading-text">正在加载...</p>
   </div>
 
   <!-- 顶部导航 -->
   <div class="topbar" id="topbar" style="display:none;">
     <div class="brand-mini">
-      <div class="brand-logo">🚗</div>
+      <div class="brand-logo">◆</div>
       <span class="brand-name">汽车产品营销 Agent 平台</span>
     </div>
     <div class="user-area">
@@ -204,23 +423,23 @@
   <!-- 主内容 -->
   <div class="main-container">
     <div class="container" id="mainContent" style="display:none;">
-      <div class="logo">🚗</div>
-      <h1>汽车产品营销 Agent 平台</h1>
-      <p class="welcome-msg">
-        AI 驱动的用户洞察与虚拟消费者仿真系统<br>
-        助力汽车产品精准营销决策
-      </p>
+      <div class="logo-area">
+        <h1>汽车产品营销 Agent 平台</h1>
+        <p class="subtitle">
+          AI 驱动<span class="subtitle-dot"></span>用户洞察<span class="subtitle-dot"></span>虚拟仿真
+        </p>
+      </div>
 
       <div class="cards">
         <a href="用户洞察Agent/index.html" class="card">
           <div class="icon">📊</div>
           <h3>用户洞察 Agent</h3>
-          <p>定性调研管理、用户样本库、<br>多维数据分析与洞察报告</p>
+          <p>定性调研管理、用户样本库、多维数据分析与洞察报告</p>
         </a>
         <a href="虚拟消费者Agent/index.html" class="card">
           <div class="icon">👥</div>
           <h3>虚拟消费者 Agent</h3>
-          <p>基于真实用户数据生成数字分身、<br>消费者仿真与智能交互</p>
+          <p>基于真实用户数据生成数字分身、消费者仿真与智能交互</p>
         </a>
       </div>
 
@@ -231,6 +450,72 @@
   </div>
 
   <script>
+    // ========== 粒子背景 ==========
+    (function(){
+      var canvas = document.getElementById('particleCanvas');
+      var ctx = canvas.getContext('2d');
+      var w, h, particles = [];
+      var count = 60;
+
+      function resize() {
+        w = canvas.width = window.innerWidth;
+        h = canvas.height = window.innerHeight;
+      }
+      window.addEventListener('resize', resize);
+      resize();
+
+      for (var i = 0; i < count; i++) {
+        particles.push({
+          x: Math.random() * w,
+          y: Math.random() * h,
+          vx: (Math.random() - 0.5) * 0.4,
+          vy: (Math.random() - 0.5) * 0.4,
+          r: Math.random() * 2 + 0.5,
+          alpha: Math.random() * 0.5 + 0.1
+        });
+      }
+
+      function animate() {
+        ctx.clearRect(0, 0, w, h);
+
+        for (var i = 0; i < particles.length; i++) {
+          var p = particles[i];
+          p.x += p.vx;
+          p.y += p.vy;
+          if (p.x < 0) p.x = w;
+          if (p.x > w) p.x = 0;
+          if (p.y < 0) p.y = h;
+          if (p.y > h) p.y = 0;
+
+          ctx.beginPath();
+          ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2);
+          ctx.fillStyle = 'rgba(0, 229, 255, ' + p.alpha + ')';
+          ctx.fill();
+        }
+
+        // 连线
+        for (var i = 0; i < particles.length; i++) {
+          for (var j = i + 1; j < particles.length; j++) {
+            var dx = particles[i].x - particles[j].x;
+            var dy = particles[i].y - particles[j].y;
+            var dist = Math.sqrt(dx * dx + dy * dy);
+            if (dist < 120) {
+              ctx.beginPath();
+              ctx.moveTo(particles[i].x, particles[i].y);
+              ctx.lineTo(particles[j].x, particles[j].y);
+              ctx.strokeStyle = 'rgba(41, 121, 255, ' + (0.06 * (1 - dist / 120)) + ')';
+              ctx.lineWidth = 0.5;
+              ctx.stroke();
+            }
+          }
+        }
+
+        requestAnimationFrame(animate);
+      }
+      animate();
+    })();
+
+    // ========== 初始化逻辑 ==========
     (async function init() {
       // Supabase 未配置 → 开发模式，直接展示
       if (!window.SUPABASE_READY) {
