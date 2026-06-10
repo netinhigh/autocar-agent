@@ -133,6 +133,13 @@ let openQuantSessions = []; // 定量调研打开的会话
 let activeQuantSessionId = null; // 当前激活的定量调研ID
 let currentSurvey = null; // 当前编辑的问卷
 let questionCounter = 0; // 问题计数器
+// 摄像头/麦克风状态
+let cameraStream = null;        // MediaStream 对象
+let audioContext = null;        // AudioContext 用于音浪可视化
+let audioAnalyser = null;       // AnalyserNode
+let audioDataArray = null;      // 音频频域数据
+let audioAnimId = null;         // requestAnimationFrame ID
+let isCameraActive = false;     // 摄像头是否已开启
 
 // 调研对象详细信息数据结构
 const audienceDetailsTemplate = {
@@ -191,7 +198,17 @@ const els = {
   newSessionModal: document.getElementById("newSessionModal"),
   closeModalBtn: document.getElementById("closeModalBtn"),
   cancelNewSessionBtn: document.getElementById("cancelNewSessionBtn"),
-  newSessionForm: document.getElementById("newSessionForm")
+  newSessionForm: document.getElementById("newSessionForm"),
+  // 摄像头相关
+  startCameraBtn: document.getElementById("startCameraBtn"),
+  stopCameraBtn: document.getElementById("stopCameraBtn"),
+  cameraSelect: document.getElementById("cameraSelect"),
+  cameraPreview: document.getElementById("cameraPreview"),
+  cameraControls: document.getElementById("cameraControls"),
+  videoFeed: document.getElementById("videoFeed"),
+  audioWave: document.getElementById("audioWave"),
+  faceUserA: document.getElementById("faceUserA"),
+  faceModerator: document.getElementById("faceModerator")
 };
 
 function renderOutline(items = outlineDefaults) {
@@ -718,12 +735,15 @@ function updateTimer() {
 }
 
 function updateCaptureStatus(active, uploaded = false) {
-  els.audioStatus.textContent = active ? "音频：采集中" : "音频：待开始";
-  els.videoStatus.textContent = active ? "视频：采集中" : uploaded ? "视频：已上传" : "视频：待开始";
+  var hasCamera = isCameraActive;
+  els.audioStatus.textContent = hasCamera || active ? "音频：采集中" : "音频：待开始";
+  els.videoStatus.textContent = hasCamera ? "视频：摄像头实时" : active ? "视频：采集中" : uploaded ? "视频：已上传" : "视频：待开始";
   els.textStatus.textContent = active ? "文本：同步生成中" : fullTranscriptLines.length ? "文本：已生成" : "文本：待同步";
-  els.captureBadge.textContent = active ? "音频 / 视频 / 文本同步中" : uploaded ? "视频文件已接入" : "音频 / 视频待采集";
-  [els.audioStatus, els.videoStatus, els.textStatus].forEach((node) => {
-    node.classList.toggle("active", active || node === els.videoStatus && uploaded || node === els.textStatus && fullTranscriptLines.length > 0);
+  els.captureBadge.textContent = hasCamera ? "摄像头正在实时采集" : active ? "音频 / 视频 / 文本同步中" : uploaded ? "视频文件已接入" : "音频 / 视频待采集";
+  [els.audioStatus, els.videoStatus, els.textStatus].forEach(function(node) {
+    node.classList.toggle("active", (hasCamera || active) && (node === els.audioStatus || node === els.videoStatus)
+      || node === els.videoStatus && (uploaded || hasCamera)
+      || node === els.textStatus && (active || fullTranscriptLines.length > 0));
   });
 }
 
@@ -772,18 +792,19 @@ function startRecording() {
   isRecording = !isRecording;
   const recordBtn = document.getElementById("recordBtn");
   recordBtn.textContent = isRecording ? "暂停实时记录" : "继续实时记录";
-  els.liveState.textContent = isRecording ? "记录中" : "已暂停";
-  updateCaptureStatus(isRecording, document.querySelector(".video-feed").classList.contains("has-upload"));
+  els.liveState.textContent = isRecording ? (isCameraActive ? "摄像头录制中" : "记录中") : (isCameraActive ? "摄像头已接入" : "已暂停");
+  var hasMedia = els.videoFeed.classList.contains("has-upload") || els.videoFeed.classList.contains("has-camera");
+  updateCaptureStatus(isRecording, hasMedia);
 
   if (isRecording) {
     addTranscriptLine();
-    timerId = window.setInterval(() => {
+    timerId = window.setInterval(function() {
       secondsLeft = Math.max(0, secondsLeft - 1);
       updateTimer();
     }, 1000);
   } else {
     window.clearInterval(timerId);
-    updateCaptureStatus(false, document.querySelector(".video-feed").classList.contains("has-upload"));
+    updateCaptureStatus(false, hasMedia);
   }
 }
 
@@ -809,6 +830,186 @@ function handleVideoUpload(event) {
   els.transcriptFeed.appendChild(node);
   els.transcriptFeed.scrollTop = els.transcriptFeed.scrollHeight;
   appendFullTranscript(item);
+}
+
+// ===== 摄像头/麦克风实时采集 =====
+
+// 枚举可用摄像头设备
+async function enumerateCameraDevices() {
+  try {
+    // 先请求一次权限以获取完整设备标签
+    var devices = await navigator.mediaDevices.enumerateDevices();
+    var cameras = devices.filter(function(d) { return d.kind === 'videoinput'; });
+    els.cameraSelect.innerHTML = cameras.map(function(cam, idx) {
+      return '<option value="' + cam.deviceId + '">' + (cam.label || '摄像头 ' + (idx + 1)) + '</option>';
+    }).join('');
+    return cameras;
+  } catch (e) {
+    console.warn('枚举摄像头设备失败:', e);
+    return [];
+  }
+}
+
+// 启动音频可视化（音浪动画）
+function startAudioVisualizer(stream) {
+  try {
+    audioContext = new (window.AudioContext || window.webkitAudioContext)();
+    audioAnalyser = audioContext.createAnalyser();
+    audioAnalyser.fftSize = 128;
+    audioAnalyser.smoothingTimeConstant = 0.5;
+    var source = audioContext.createMediaStreamSource(stream);
+    source.connect(audioAnalyser);
+    audioDataArray = new Uint8Array(audioAnalyser.frequencyBinCount);
+    renderAudioWave();
+    console.log('[摄像头] 音频可视化已启动');
+  } catch (e) {
+    console.warn('[摄像头] 音频可视化启动失败（可能未授权麦克风）:', e);
+  }
+}
+
+// 渲染音浪条
+function renderAudioWave() {
+  if (!audioAnalyser || !audioDataArray) return;
+  audioAnalyser.getByteFrequencyData(audioDataArray);
+  var bars = els.audioWave.querySelectorAll('span');
+  if (bars.length === 0) return;
+  // 取低频段数据映射到5个音浪条
+  var step = Math.floor(audioDataArray.length / bars.length);
+  for (var i = 0; i < bars.length; i++) {
+    var val = audioDataArray[i * step] / 255; // 0~1
+    var h = Math.max(4, val * 36);
+    var hue = 180 + val * 90; // 青色(180) → 紫色(270)
+    bars[i].style.height = h + 'px';
+    bars[i].style.background = 'rgba(' + Math.floor(150 - val * 80) + ',' + Math.floor(211 - val * 50) + ',' + (238 - val * 100) + ',' + (0.4 + val * 0.55) + ')';
+    bars[i].style.boxShadow = '0 0 ' + (val * 10) + 'px rgba(34,211,238,' + (0.2 + val * 0.4) + ')';
+  }
+  audioAnimId = requestAnimationFrame(renderAudioWave);
+}
+
+// 停止音频可视化
+function stopAudioVisualizer() {
+  if (audioAnimId) {
+    cancelAnimationFrame(audioAnimId);
+    audioAnimId = null;
+  }
+  if (audioContext && audioContext.state !== 'closed') {
+    audioContext.close().catch(function() {});
+  }
+  audioContext = null;
+  audioAnalyser = null;
+  audioDataArray = null;
+  // 恢复音浪条默认状态
+  var bars = els.audioWave.querySelectorAll('span');
+  for (var i = 0; i < bars.length; i++) {
+    bars[i].style.height = '';
+    bars[i].style.background = '';
+    bars[i].style.boxShadow = '';
+  }
+}
+
+// 开启摄像头
+async function startCamera() {
+  try {
+    // 枚举可用设备
+    var cameras = await enumerateCameraDevices();
+    if (cameras.length === 0) {
+      showToast('未检测到可用摄像头设备', 'warning');
+      return;
+    }
+
+    // 如果已有流，先停止
+    if (cameraStream) {
+      stopCameraInternal();
+    }
+
+    var selectedDeviceId = els.cameraSelect.value;
+    var constraints = {
+      video: {
+        deviceId: selectedDeviceId ? { exact: selectedDeviceId } : undefined,
+        width: { ideal: 1280 },
+        height: { ideal: 720 },
+        facingMode: 'user'
+      },
+      audio: {
+        echoCancellation: true,
+        noiseSuppression: true,
+        autoGainControl: true
+      }
+    };
+
+    cameraStream = await navigator.mediaDevices.getUserMedia(constraints);
+    els.cameraPreview.srcObject = cameraStream;
+
+    // 显示预览，隐藏占位面孔
+    els.videoFeed.classList.add('has-camera');
+    els.videoFeed.classList.remove('has-upload');
+    isCameraActive = true;
+
+    // 自动切换到实时采集阶段
+    if (currentSession) {
+      setStage("live");
+    }
+
+    // 显示控制栏
+    els.cameraControls.style.display = 'flex';
+    els.startCameraBtn.style.display = 'none';
+
+    // 启动音频可视化
+    startAudioVisualizer(cameraStream);
+
+    // 更新状态
+    updateCaptureStatus(isRecording, true);
+    els.liveState.textContent = '摄像头已接入';
+
+    console.log('[摄像头] 已开启，设备数:', cameras.length);
+    showToast('摄像头已开启，正在实时采集画面与声音', 'success');
+  } catch (err) {
+    console.error('[摄像头] 开启失败:', err);
+    if (err.name === 'NotAllowedError') {
+      showToast('摄像头/麦克风权限被拒绝，请在浏览器设置中允许访问', 'error');
+    } else if (err.name === 'NotFoundError') {
+      showToast('未检测到摄像头或麦克风设备', 'error');
+    } else {
+      showToast('摄像头开启失败：' + (err.message || '未知错误'), 'error');
+    }
+  }
+}
+
+// 内部停止方法
+function stopCameraInternal() {
+  if (cameraStream) {
+    cameraStream.getTracks().forEach(function(track) { track.stop(); });
+    cameraStream = null;
+  }
+  stopAudioVisualizer();
+  els.cameraPreview.srcObject = null;
+}
+
+// 关闭摄像头
+function stopCamera() {
+  stopCameraInternal();
+  isCameraActive = false;
+
+  els.videoFeed.classList.remove('has-camera');
+  els.cameraControls.style.display = 'none';
+  els.startCameraBtn.style.display = 'inline-flex';
+
+  // 如果之前有上传视频，恢复显示
+  var hasUpload = els.uploadedVideo.src && els.uploadedVideo.src.indexOf('blob:') === 0;
+  if (hasUpload) {
+    els.videoFeed.classList.add('has-upload');
+  }
+  updateCaptureStatus(isRecording, hasUpload);
+  els.liveState.textContent = isRecording ? '记录中' : '待开始';
+
+  console.log('[摄像头] 已关闭');
+}
+
+// 切换摄像头设备
+async function switchCamera() {
+  if (!isCameraActive) return;
+  console.log('[摄像头] 切换设备...');
+  await startCamera();
 }
 
 async function copyTranscript() {
@@ -959,6 +1160,10 @@ function resetDemo() {
   pendingSessionStarted = false;
   transcriptIndex = 0;
   isRecording = false;
+  // 停止摄像头采集
+  if (isCameraActive) {
+    stopCamera();
+  }
   fullTranscriptLines = [];
   secondsLeft = 23 * 60 + 40;
   progress = 42;
@@ -1067,6 +1272,11 @@ els.newSessionModal.addEventListener("click", function(e) {
   if (e.target === els.newSessionModal) hideNewSessionModal();
 });
 els.newSessionForm.addEventListener("submit", handleNewSessionSubmit);
+
+// 摄像头事件
+els.startCameraBtn.addEventListener("click", startCamera);
+els.stopCameraBtn.addEventListener("click", stopCamera);
+els.cameraSelect.addEventListener("change", switchCamera);
 
 renderSessionFilters();
 renderSessions();

@@ -261,11 +261,12 @@
             <div class="stage" id="liveStage">
               <div class="live-grid">
                 <section class="recording">
-                  <div class="video-feed">
+                  <div class="video-feed" id="videoFeed">
+                    <video id="cameraPreview" class="camera-preview" autoplay muted playsinline></video>
                     <video id="uploadedVideo" class="uploaded-video" controls></video>
-                    <div class="face user-a">用户A</div>
-                    <div class="face moderator">主持人</div>
-                    <div class="wave">
+                    <div class="face user-a" id="faceUserA">用户A</div>
+                    <div class="face moderator" id="faceModerator">主持人</div>
+                    <div class="wave" id="audioWave">
                       <span></span><span></span><span></span><span></span><span></span>
                     </div>
                     <div class="capture-badge" id="captureBadge">音频 / 视频待采集</div>
@@ -275,6 +276,16 @@
                     <span class="status-chip" id="videoStatus">视频：待开始</span>
                     <span class="status-chip" id="textStatus">文本：待同步</span>
                   </div>
+                  <div class="camera-controls" id="cameraControls" style="display:none;">
+                    <label class="camera-select-label">
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
+                      <select id="cameraSelect"></select>
+                    </label>
+                    <button class="ghost-btn" id="stopCameraBtn">
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="3" y="3" width="18" height="18" rx="2"/></svg>
+                      关闭摄像头
+                    </button>
+                  </div>
                   <label class="upload-box" for="videoUpload">
                     <span>上传视频文件</span>
                     <strong id="uploadFileName">支持访谈视频、试驾回访视频、焦点小组录像</strong>
@@ -282,6 +293,10 @@
                   </label>
                   <div class="recording-actions">
                     <button class="danger-btn" id="recordBtn">开始实时记录</button>
+                    <button class="primary-btn" id="startCameraBtn" style="display:inline-flex;align-items:center;gap:6px;">
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
+                      开启摄像头
+                    </button>
                     <button class="ghost-btn" id="nextLineBtn">模拟用户发言</button>
                   </div>
                 </section>
