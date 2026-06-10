@@ -29,36 +29,10 @@
 body {
   margin: 0;
   min-height: 100vh;
-  font-family: "Microsoft YaHei", "PingFang SC", Arial, sans-serif;
+  font-family: 'Inter', "Microsoft YaHei", "PingFang SC", Arial, sans-serif;
   color: var(--ink);
-  background:
-    radial-gradient(circle at 18% 12%, rgba(167, 139, 250, 0.2), transparent 28%),
-    radial-gradient(circle at 78% 2%, rgba(59, 130, 246, 0.24), transparent 28%),
-    linear-gradient(135deg, #06101d 0%, #091827 48%, #07111f 100%);
-}
-
-body::before {
-  position: fixed;
-  inset: 0;
-  z-index: -2;
-  content: "";
-  background-image:
-    linear-gradient(rgba(167, 139, 250, 0.06) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(167, 139, 250, 0.06) 1px, transparent 1px);
-  background-size: 38px 38px;
-  mask-image: linear-gradient(to bottom, rgba(0, 0, 0, 0.75), transparent 88%);
-}
-
-body::after {
-  position: fixed;
-  inset: 0;
-  z-index: -1;
-  pointer-events: none;
-  content: "";
-  background:
-    linear-gradient(120deg, transparent 0 42%, rgba(167, 139, 250, 0.07) 48%, transparent 56%),
-    repeating-linear-gradient(0deg, rgba(255, 255, 255, 0.025) 0 1px, transparent 1px 8px);
-  opacity: 0.65;
+  background: transparent;
+  overflow-x: hidden;
 }
 
 button, input, textarea, select { font: inherit; }

@@ -133,12 +133,10 @@
       gap: 10px;
     }
     .topbar .brand-logo {
-      width: 36px; height: 36px;
-      background: linear-gradient(135deg, var(--accent-blue), var(--accent-cyan));
-      border-radius: 10px;
-      display: flex; align-items: center; justify-content: center;
-      font-size: 16px;
-      box-shadow: 0 0 16px rgba(0, 229, 255, 0.25);
+      width: 4px; height: 24px;
+      background: linear-gradient(180deg, var(--accent-cyan), var(--accent-blue));
+      border-radius: 2px;
+      box-shadow: 0 0 12px rgba(0, 229, 255, 0.4);
     }
     .topbar .brand-name {
       font-size: 15px;
@@ -316,14 +314,34 @@
     }
 
     .card .icon {
-      font-size: 42px;
-      margin-bottom: 16px;
-      display: inline-block;
-      transition: transform 0.3s ease;
+      width: 48px; height: 48px;
+      margin: 0 auto 16px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border-radius: 14px;
+      transition: all 0.3s ease;
     }
     .card:hover .icon {
       transform: scale(1.1);
     }
+    .card .icon svg {
+      width: 26px; height: 26px;
+      fill: none;
+      stroke-width: 2;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+    }
+    .icon-insight {
+      background: rgba(0, 229, 255, 0.12);
+      box-shadow: 0 0 20px rgba(0, 229, 255, 0.15);
+    }
+    .icon-insight svg { stroke: var(--accent-cyan); }
+    .icon-consumer {
+      background: rgba(124, 77, 255, 0.12);
+      box-shadow: 0 0 20px rgba(124, 77, 255, 0.15);
+    }
+    .icon-consumer svg { stroke: var(--accent-purple); }
     .card h3 {
       font-size: 19px;
       font-weight: 600;
@@ -411,7 +429,7 @@
   <!-- 顶部导航 -->
   <div class="topbar" id="topbar" style="display:none;">
     <div class="brand-mini">
-      <div class="brand-logo">◆</div>
+      <div class="brand-logo"></div>
       <span class="brand-name">汽车产品营销 Agent 平台</span>
     </div>
     <div class="user-area">
@@ -432,12 +450,32 @@
 
       <div class="cards">
         <a href="用户洞察Agent/index.html" class="card">
-          <div class="icon">📊</div>
+          <div class="icon icon-insight">
+            <svg viewBox="0 0 24 24">
+              <rect x="2" y="14" width="4" height="8" rx="1"/>
+              <rect x="8" y="9" width="4" height="13" rx="1"/>
+              <rect x="14" y="4" width="4" height="18" rx="1"/>
+              <rect x="20" y="9" width="4" height="13" rx="1"/>
+              <line x1="2" y1="22" x2="22" y2="22"/>
+              <circle cx="4" cy="11" r="1.5" fill="currentColor" stroke="none"/>
+              <circle cx="10" cy="6" r="1.5" fill="currentColor" stroke="none"/>
+              <circle cx="16" cy="1" r="1.5" fill="currentColor" stroke="none"/>
+            </svg>
+          </div>
           <h3>用户洞察 Agent</h3>
           <p>定性调研管理、用户样本库、多维数据分析与洞察报告</p>
         </a>
         <a href="虚拟消费者Agent/index.html" class="card">
-          <div class="icon">👥</div>
+          <div class="icon icon-consumer">
+            <svg viewBox="0 0 24 24">
+              <circle cx="9" cy="7" r="4"/>
+              <path d="M1 20v-1a6 6 0 0112 0v1"/>
+              <circle cx="18" cy="8" r="3"/>
+              <path d="M13 19v-1a5 5 0 014-4.8"/>
+              <line x1="18" y1="11" x2="18" y2="14"/>
+              <line x1="16" y1="12.5" x2="20" y2="12.5"/>
+            </svg>
+          </div>
           <h3>虚拟消费者 Agent</h3>
           <p>基于真实用户数据生成数字分身、消费者仿真与智能交互</p>
         </a>
