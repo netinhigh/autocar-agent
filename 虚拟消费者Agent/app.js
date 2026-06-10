@@ -46,91 +46,13 @@ function assignGroupToVC(vc) {
 var digitalTwins = [];
 
 // 完全虚拟消费者（基于规则+统计生成，ID 格式 VC-XXX，与数字分身/真实用户编码区分）
-var syntheticPersonas = [
-  { id: 'VC-001', name: '年轻科技先锋', brief: '28岁·一线城市·科技从业者', type: 'synthetic', rule: '加权求和', confidence: 0.82, tags: [
-    { name: '决策风格', value: '理性分析型', score: 0.78 },
-    { name: '功能偏好', value: '智能座舱优先', score: 0.86 },
-    { name: '价格敏感度', value: '较低', score: 0.32 },
-    { name: '科技偏好', value: '极高', score: 0.93 },
-    { name: '品牌忠诚度', value: '中等', score: 0.48 },
-    { name: '安全关注度', value: '高', score: 0.72 },
-    { name: '外观偏好', value: '科技简约风', score: 0.76 },
-    { name: '续航焦虑', value: '较低', score: 0.30 }
-  ]},
-  { id: 'VC-002', name: '家庭实用主义者', brief: '35岁·新一线·二孩家庭', type: 'synthetic', rule: '阈值AND', confidence: 0.79, tags: [
-    { name: '决策风格', value: '感性直觉型', score: 0.62 },
-    { name: '功能偏好', value: '空间与安全优先', score: 0.85 },
-    { name: '价格敏感度', value: '较高', score: 0.68 },
-    { name: '科技偏好', value: '中等', score: 0.42 },
-    { name: '品牌忠诚度', value: '较高', score: 0.65 },
-    { name: '安全关注度', value: '极高', score: 0.91 },
-    { name: '外观偏好', value: '稳重家用风', score: 0.52 },
-    { name: '续航焦虑', value: '高', score: 0.76 }
-  ]},
-  { id: 'VC-003', name: '潮流体验达人', brief: '25岁·一线城市·追求个性', type: 'synthetic', rule: '优先级排序', confidence: 0.76, tags: [
-    { name: '决策风格', value: '冲动体验型', score: 0.72 },
-    { name: '功能偏好', value: '外观与性能优先', score: 0.80 },
-    { name: '价格敏感度', value: '中等', score: 0.50 },
-    { name: '科技偏好', value: '高', score: 0.78 },
-    { name: '品牌忠诚度', value: '低', score: 0.22 },
-    { name: '安全关注度', value: '中等', score: 0.48 },
-    { name: '外观偏好', value: '运动潮流风', score: 0.87 },
-    { name: '续航焦虑', value: '较低', score: 0.38 }
-  ]},
-  { id: 'VC-004', name: '高端品质追求者', brief: '42岁·一线城市·企业高管', type: 'synthetic', rule: '加权求和', confidence: 0.85, tags: [
-    { name: '决策风格', value: '品质导向型', score: 0.86 },
-    { name: '功能偏好', value: '豪华舒适优先', score: 0.88 },
-    { name: '价格敏感度', value: '极低', score: 0.12 },
-    { name: '科技偏好', value: '高', score: 0.73 },
-    { name: '品牌忠诚度', value: '极高', score: 0.90 },
-    { name: '安全关注度', value: '高', score: 0.80 },
-    { name: '外观偏好', value: '豪华商务风', score: 0.83 },
-    { name: '续航焦虑', value: '中等', score: 0.48 }
-  ]},
-  { id: 'VC-005', name: '精明比价族', brief: '30岁·二线城市·精打细算', type: 'synthetic', rule: '阈值AND', confidence: 0.80, tags: [
-    { name: '决策风格', value: '谨慎比价型', score: 0.76 },
-    { name: '功能偏好', value: '性价比优先', score: 0.84 },
-    { name: '价格敏感度', value: '极高', score: 0.86 },
-    { name: '科技偏好', value: '较低', score: 0.28 },
-    { name: '品牌忠诚度', value: '中等', score: 0.40 },
-    { name: '安全关注度', value: '高', score: 0.82 },
-    { name: '外观偏好', value: '简约实用风', score: 0.38 },
-    { name: '续航焦虑', value: '高', score: 0.80 }
-  ]},
-  { id: 'VC-006', name: '环保理想主义者', brief: '33岁·一线城市·环保倡导者', type: 'synthetic', rule: '优先级排序', confidence: 0.74, tags: [
-    { name: '决策风格', value: '理性分析型', score: 0.70 },
-    { name: '功能偏好', value: '续航优先', score: 0.82 },
-    { name: '价格敏感度', value: '中等', score: 0.55 },
-    { name: '科技偏好', value: '高', score: 0.70 },
-    { name: '品牌忠诚度', value: '中等', score: 0.45 },
-    { name: '安全关注度', value: '中等', score: 0.58 },
-    { name: '外观偏好', value: '简约自然风', score: 0.62 },
-    { name: '续航焦虑', value: '较低', score: 0.35 }
-  ]},
-  { id: 'VC-007', name: '均衡中庸派', brief: '36岁·新一线·中庸消费者', type: 'synthetic', rule: '加权求和', confidence: 0.71, tags: [
-    { name: '决策风格', value: '从众跟随型', score: 0.55 },
-    { name: '功能偏好', value: '均衡全面', score: 0.60 },
-    { name: '价格敏感度', value: '中等', score: 0.52 },
-    { name: '科技偏好', value: '中等', score: 0.50 },
-    { name: '品牌忠诚度', value: '中等', score: 0.48 },
-    { name: '安全关注度', value: '中等', score: 0.55 },
-    { name: '外观偏好', value: '中庸大众风', score: 0.50 },
-    { name: '续航焦虑', value: '中等', score: 0.52 }
-  ]}
-];
+// ===== 完全虚拟消费者数据（已清空）=====
+// 用户登录后可自行创建和维护虚拟消费者
+var syntheticPersonas = [];
 
-// 为每个完全虚拟消费者添加群组和人口属性
-var synAges = [28, 35, 25, 42, 30, 33, 36];
-var synGenders = ['男', '女', '男', '男', '女', '男', '男'];
-var synMaritals = ['未婚', '已婚', '未婚', '已婚', '已婚', '未婚', '已婚'];
-var synChildren = ['无子女', '2个孩子', '无子女', '2个孩子', '1个孩子', '无子女', '1个孩子'];
-for (var si = 0; si < syntheticPersonas.length; si++) {
-  syntheticPersonas[si].age = synAges[si];
-  syntheticPersonas[si].gender = synGenders[si];
-  syntheticPersonas[si].maritalStatus = synMaritals[si];
-  syntheticPersonas[si].children = synChildren[si];
-  assignGroupToVC(syntheticPersonas[si]);
-}
+
+// ===== 原虚构消费者属性赋值已清空 =====
+
 
 // 准确度收敛历史（按数字分身 realUserId 索引，动态生成）
 var accuracyConvergenceData = {};
@@ -1698,36 +1620,7 @@ function getEmbeddedSamples() {
   // 用户样本库中的24个真实用户数据（仅已完成调研场次：S-001/S-003/S-004/S-006）
   // S-002(焦点小组-进行中)和S-005(概念测试-待开始)的12个用户暂未进入样本库
   // 虚拟消费者平台的数字分身与这24个样本库用户一一对应
-  return [
-    // === S-001: 一对一深访 - 本品牌A车型（已完成） ===
-    {id:"U-001",name:"张明",product:"本品牌A车型",researchType:"一对一深访",researchDate:"2026-05-18",sessionId:"S-001",age:28,gender:"男",maritalStatus:"已婚",children:"1个孩子",city:"杭州",cityLevel:"二线",education:"本科",income:"30-50万",carOwnership:"1辆燃油车",currentCar:"本田思域",hasChildren:true,surveysCompleted:["Q-001"],notes:"关注冬季续航和亲子空间，计划过年回老家"},
-    {id:"U-002",name:"李婷",product:"本品牌A车型",researchType:"一对一深访",researchDate:"2026-05-18",sessionId:"S-001",age:31,gender:"女",maritalStatus:"已婚",children:"1个孩子",city:"上海",cityLevel:"一线",education:"硕士",income:"50-100万",carOwnership:"无车",currentCar:"",hasChildren:true,surveysCompleted:["Q-001"],notes:"置换购车，注重品牌和品质"},
-    {id:"U-003",name:"王浩",product:"本品牌A车型",researchType:"一对一深访",researchDate:"2026-05-18",sessionId:"S-001",age:26,gender:"女",maritalStatus:"未婚",children:"无子女",city:"南京",cityLevel:"二线",education:"本科",income:"20-30万",carOwnership:"无车",currentCar:"",hasChildren:false,surveysCompleted:["Q-001"],notes:"首购用户，预算有限但追求科技感"},
-    {id:"U-004",name:"陈静",product:"本品牌A车型",researchType:"一对一深访",researchDate:"2026-05-18",sessionId:"S-001",age:35,gender:"女",maritalStatus:"已婚",children:"2个孩子",city:"苏州",cityLevel:"二线",education:"大专",income:"30-50万",carOwnership:"1辆燃油车",currentCar:"丰田凯美瑞",hasChildren:true,surveysCompleted:["Q-001"],notes:"二胎家庭，空间和安全性是首要考虑"},
-    {id:"U-005",name:"刘强",product:"本品牌A车型",researchType:"一对一深访",researchDate:"2026-05-18",sessionId:"S-001",age:30,gender:"男",maritalStatus:"已婚",children:"计划生育",city:"宁波",cityLevel:"二线",education:"本科",income:"20-30万",carOwnership:"1辆燃油车",currentCar:"大众朗逸",hasChildren:false,surveysCompleted:["Q-001"],notes:"计划要孩子，提前考虑换车"},
-    {id:"U-006",name:"赵敏",product:"本品牌A车型",researchType:"一对一深访",researchDate:"2026-05-18",sessionId:"S-001",age:29,gender:"女",maritalStatus:"已婚",children:"1个孩子",city:"无锡",cityLevel:"二线",education:"本科",income:"30-50万",carOwnership:"1辆新能源车",currentCar:"比亚迪秦",hasChildren:true,surveysCompleted:["Q-001"],notes:"已有新能源用车经验，关注升级体验"},
-    // === S-003: 试驾回访 - 本品牌A车型（已完成） ===
-    {id:"U-013",name:"韩梅",product:"本品牌A车型",researchType:"试驾回访",researchDate:"2026-05-27",sessionId:"S-003",age:35,gender:"女",maritalStatus:"已婚",children:"1个孩子",city:"武汉",cityLevel:"二线",education:"本科",income:"30-50万",carOwnership:"1辆燃油车",currentCar:"日产逍客",hasChildren:true,surveysCompleted:["Q-001","Q-003"],notes:"完成试驾但未下订，家人对续航有顾虑"},
-    {id:"U-014",name:"蒋军",product:"本品牌A车型",researchType:"试驾回访",researchDate:"2026-05-27",sessionId:"S-003",age:28,gender:"男",maritalStatus:"未婚",children:"无子女",city:"长沙",cityLevel:"二线",education:"本科",income:"20-30万",carOwnership:"无车",currentCar:"",hasChildren:false,surveysCompleted:["Q-003"],notes:"试驾后对智驾印象深，但价格超出预算"},
-    {id:"U-015",name:"沈丽",product:"本品牌A车型",researchType:"试驾回访",researchDate:"2026-05-27",sessionId:"S-003",age:32,gender:"女",maritalStatus:"已婚",children:"2个孩子",city:"西安",cityLevel:"二线",education:"大专",income:"30-50万",carOwnership:"1辆燃油车",currentCar:"别克GL8",hasChildren:true,surveysCompleted:["Q-003"],notes:"试驾满意，但金融方案不够灵活"},
-    {id:"U-016",name:"余波",product:"本品牌A车型",researchType:"试驾回访",researchDate:"2026-05-27",sessionId:"S-003",age:30,gender:"男",maritalStatus:"已婚",children:"1个孩子",city:"重庆",cityLevel:"二线",education:"本科",income:"20-30万",carOwnership:"1辆燃油车",currentCar:"长安CS75",hasChildren:true,surveysCompleted:["Q-001","Q-003"],notes:"试驾体验好，但担心二手车保值率"},
-    {id:"U-017",name:"潘红",product:"本品牌A车型",researchType:"试驾回访",researchDate:"2026-05-27",sessionId:"S-003",age:27,gender:"女",maritalStatus:"未婚",children:"无子女",city:"天津",cityLevel:"一线",education:"本科",income:"20-30万",carOwnership:"无车",currentCar:"",hasChildren:false,surveysCompleted:["Q-003"],notes:"单身女性首购，对自动泊车很感兴趣"},
-    {id:"U-018",name:"董亮",product:"本品牌A车型",researchType:"试驾回访",researchDate:"2026-05-27",sessionId:"S-003",age:33,gender:"男",maritalStatus:"已婚",children:"1个孩子",city:"青岛",cityLevel:"二线",education:"硕士",income:"30-50万",carOwnership:"1辆燃油车",currentCar:"大众途观",hasChildren:true,surveysCompleted:["Q-003"],notes:"试驾后排评价高，但担心售后网点少"},
-    // === S-004: 竞品车主访谈 - 竞品B车型（已完成） ===
-    {id:"U-019",name:"袁志",product:"竞品B车型",researchType:"竞品车主访谈",researchDate:"2026-05-30",sessionId:"S-004",age:31,gender:"男",maritalStatus:"已婚",children:"1个孩子",city:"合肥",cityLevel:"二线",education:"本科",income:"30-50万",carOwnership:"1辆新能源车",currentCar:"特斯拉Model Y",hasChildren:true,surveysCompleted:["Q-002","Q-003"],notes:"竞品B车主，认可品牌但觉得座舱一般"},
-    {id:"U-020",name:"邓娟",product:"竞品B车型",researchType:"竞品车主访谈",researchDate:"2026-05-30",sessionId:"S-004",age:27,gender:"男",maritalStatus:"未婚",children:"无子女",city:"郑州",cityLevel:"二线",education:"本科",income:"20-30万",carOwnership:"1辆新能源车",currentCar:"比亚迪汉",hasChildren:false,surveysCompleted:["Q-002"],notes:"年轻车主，看重品牌和口碑"},
-    {id:"U-021",name:"许峰",product:"竞品B车型",researchType:"竞品车主访谈",researchDate:"2026-05-30",sessionId:"S-004",age:36,gender:"男",maritalStatus:"已婚",children:"2个孩子",city:"福州",cityLevel:"二线",education:"大专",income:"30-50万",carOwnership:"1辆新能源车",currentCar:"蔚来ES6",hasChildren:true,surveysCompleted:["Q-002","Q-003"],notes:"二孩家庭，选择竞品因补能网络完善"},
-    {id:"U-022",name:"傅艳",product:"竞品B车型",researchType:"竞品车主访谈",researchDate:"2026-05-30",sessionId:"S-004",age:29,gender:"女",maritalStatus:"已婚",children:"1个孩子",city:"厦门",cityLevel:"二线",education:"本科",income:"30-50万",carOwnership:"1辆新能源车",currentCar:"小鹏G9",hasChildren:true,surveysCompleted:["Q-002"],notes:"对竞品智驾满意，但希望座椅更舒适"},
-    {id:"U-023",name:"钟杰",product:"竞品B车型",researchType:"竞品车主访谈",researchDate:"2026-05-30",sessionId:"S-004",age:34,gender:"男",maritalStatus:"已婚",children:"1个孩子",city:"大连",cityLevel:"二线",education:"本科",income:"20-30万",carOwnership:"1辆新能源车",currentCar:"理想L7",hasChildren:true,surveysCompleted:["Q-002","Q-003"],notes:"增程式车主，考虑转纯电但担心续航"},
-    {id:"U-024",name:"谭敏",product:"竞品B车型",researchType:"竞品车主访谈",researchDate:"2026-05-30",sessionId:"S-004",age:32,gender:"女",maritalStatus:"已婚",children:"1个孩子",city:"昆明",cityLevel:"二线",education:"硕士",income:"30-50万",carOwnership:"1辆新能源车",currentCar:"问界M7",hasChildren:true,surveysCompleted:["Q-002"],notes:"重视售后服务，竞品服务体验好"},
-    // === S-006: 销售线索回访 - 本品牌B车型（已完成） ===
-    {id:"U-031",name:"龚涛",product:"本品牌B车型",researchType:"销售线索回访",researchDate:"2026-06-01",sessionId:"S-006",age:42,gender:"女",maritalStatus:"已婚",children:"2个孩子",city:"武汉",cityLevel:"二线",education:"本科",income:"50-100万",carOwnership:"1辆燃油车",currentCar:"别克GL8",hasChildren:true,surveysCompleted:["Q-003"],notes:"留资后未到店，价格敏感度高"},
-    {id:"U-032",name:"毛杰",product:"本品牌B车型",researchType:"销售线索回访",researchDate:"2026-06-01",sessionId:"S-006",age:29,gender:"男",maritalStatus:"未婚",children:"无子女",city:"西安",cityLevel:"二线",education:"本科",income:"20-30万",carOwnership:"无车",currentCar:"",hasChildren:false,surveysCompleted:[],notes:"年轻高潜客户，被竞品截流风险高"},
-    {id:"U-033",name:"常红",product:"本品牌B车型",researchType:"销售线索回访",researchDate:"2026-06-01",sessionId:"S-006",age:36,gender:"女",maritalStatus:"已婚",children:"1个孩子",city:"重庆",cityLevel:"二线",education:"大专",income:"30-50万",carOwnership:"1辆燃油车",currentCar:"福特锐界",hasChildren:true,surveysCompleted:["Q-003"],notes:"对比多家，等待促销活动"},
-    {id:"U-034",name:"武峰",product:"本品牌B车型",researchType:"销售线索回访",researchDate:"2026-06-01",sessionId:"S-006",age:31,gender:"男",maritalStatus:"已婚",children:"1个孩子",city:"天津",cityLevel:"一线",education:"本科",income:"30-50万",carOwnership:"1辆燃油车",currentCar:"大众迈腾",hasChildren:true,surveysCompleted:[],notes:"工作繁忙无暇到店，需线上跟进"},
-    {id:"U-035",name:"乔艳",product:"本品牌B车型",researchType:"销售线索回访",researchDate:"2026-06-01",sessionId:"S-006",age:28,gender:"女",maritalStatus:"未婚",children:"无子女",city:"青岛",cityLevel:"二线",education:"本科",income:"20-30万",carOwnership:"无车",currentCar:"",hasChildren:false,surveysCompleted:[],notes:"已试驾竞品，对本品牌认知不足"},
-    {id:"U-036",name:"邵明",product:"本品牌B车型",researchType:"销售线索回访",researchDate:"2026-06-01",sessionId:"S-006",age:40,gender:"男",maritalStatus:"已婚",children:"2个孩子",city:"长沙",cityLevel:"二线",education:"本科",income:"30-50万",carOwnership:"1辆燃油车",currentCar:"本田冠道",hasChildren:true,surveysCompleted:["Q-001","Q-003"],notes:"老客户，对品牌有一定感情"}
-  ];
+  return [];
 }
 
 // ★ 更新自动同步状态指示器
