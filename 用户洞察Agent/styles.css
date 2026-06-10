@@ -249,6 +249,33 @@ button {
   }
 }
 
+.sidebar-back-link {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 12px;
+  border: 1px solid rgba(126, 226, 255, 0.15);
+  border-radius: 8px;
+  color: #a7b4c4;
+  font-size: 13px;
+  text-decoration: none;
+  transition: all 0.25s ease;
+  margin-bottom: 4px;
+}
+.sidebar-back-link:hover {
+  color: #eef5ff;
+  border-color: rgba(126, 226, 255, 0.35);
+  background: rgba(126, 226, 255, 0.06);
+  box-shadow: 0 0 16px rgba(34, 211, 238, 0.08);
+}
+.sidebar-back-link svg {
+  flex-shrink: 0;
+  transition: transform 0.25s ease;
+}
+.sidebar-back-link:hover svg {
+  transform: translateX(-3px);
+}
+
 .sidebar-footer {
   margin-top: auto;
   padding: 14px;
