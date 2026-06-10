@@ -1,0 +1,358 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>登录 - 汽车产品营销Agent平台</title>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="supabase-config.js"></script>
+  <script src="auth.js"></script>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif;
+      background: linear-gradient(135deg, #0a1628 0%, #1a2a4a 50%, #0d1f3c 100%);
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: #e0e6f0;
+      overflow: hidden;
+    }
+
+    /* 背景动效 */
+    .bg-animation {
+      position: fixed;
+      top: 0; left: 0; right: 0; bottom: 0;
+      pointer-events: none;
+      z-index: 0;
+    }
+    .bg-circle {
+      position: absolute;
+      border-radius: 50%;
+      opacity: 0.06;
+    }
+    .bg-circle:nth-child(1) {
+      width: 600px; height: 600px;
+      background: radial-gradient(circle, #4facfe, transparent 70%);
+      top: -200px; right: -100px;
+    }
+    .bg-circle:nth-child(2) {
+      width: 400px; height: 400px;
+      background: radial-gradient(circle, #00f2fe, transparent 70%);
+      bottom: -100px; left: -50px;
+    }
+    .bg-circle:nth-child(3) {
+      width: 300px; height: 300px;
+      background: radial-gradient(circle, #4facfe, transparent 70%);
+      top: 50%; left: 50%;
+      transform: translate(-50%, -50%);
+    }
+
+    /* 登录卡片 */
+    .login-wrapper {
+      position: relative;
+      z-index: 1;
+      width: 440px;
+    }
+
+    .login-card {
+      background: rgba(255,255,255,0.04);
+      border: 1px solid rgba(255,255,255,0.08);
+      border-radius: 24px;
+      padding: 48px 40px 40px;
+      backdrop-filter: blur(20px);
+      box-shadow: 0 20px 60px rgba(0,0,0,0.4);
+    }
+
+    .logo-area {
+      text-align: center;
+      margin-bottom: 36px;
+    }
+    .logo-icon {
+      width: 64px; height: 64px;
+      margin: 0 auto 20px;
+      background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
+      border-radius: 16px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 30px;
+      box-shadow: 0 8px 32px rgba(79, 172, 254, 0.25);
+    }
+    .logo-area h1 {
+      font-size: 22px;
+      font-weight: 700;
+      background: linear-gradient(135deg, #e0e6f0 0%, #4facfe 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      margin-bottom: 6px;
+    }
+    .logo-area .subtitle {
+      font-size: 13px;
+      color: #667788;
+    }
+
+    /* 表单 */
+    .form-group {
+      margin-bottom: 20px;
+    }
+    .form-group label {
+      display: block;
+      font-size: 13px;
+      color: #8899aa;
+      margin-bottom: 8px;
+      font-weight: 500;
+    }
+    .input-wrapper {
+      position: relative;
+    }
+    .input-icon {
+      position: absolute;
+      left: 16px;
+      top: 50%;
+      transform: translateY(-50%);
+      font-size: 16px;
+      color: #556677;
+      pointer-events: none;
+    }
+    .form-group input {
+      width: 100%;
+      padding: 14px 16px 14px 46px;
+      background: rgba(255,255,255,0.05);
+      border: 1px solid rgba(255,255,255,0.1);
+      border-radius: 12px;
+      color: #e0e6f0;
+      font-size: 15px;
+      outline: none;
+      transition: all 0.3s;
+    }
+    .form-group input::placeholder {
+      color: #445566;
+    }
+    .form-group input:focus {
+      border-color: #4facfe;
+      background: rgba(255,255,255,0.08);
+      box-shadow: 0 0 0 3px rgba(79, 172, 254, 0.15);
+    }
+
+    /* 登录按钮 */
+    .btn-login {
+      width: 100%;
+      padding: 14px;
+      background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
+      border: none;
+      border-radius: 12px;
+      color: #fff;
+      font-size: 16px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.3s;
+      margin-top: 8px;
+      letter-spacing: 2px;
+    }
+    .btn-login:hover {
+      box-shadow: 0 8px 24px rgba(79, 172, 254, 0.35);
+      transform: translateY(-1px);
+    }
+    .btn-login:active {
+      transform: translateY(0);
+    }
+    .btn-login:disabled {
+      opacity: 0.6;
+      cursor: not-allowed;
+      transform: none;
+    }
+
+    /* 错误提示 */
+    .error-msg {
+      background: rgba(255, 77, 79, 0.1);
+      border: 1px solid rgba(255, 77, 79, 0.15);
+      border-radius: 10px;
+      padding: 12px 16px;
+      color: #ff7875;
+      font-size: 13px;
+      margin-bottom: 20px;
+      display: none;
+      text-align: center;
+    }
+    .error-msg.show {
+      display: block;
+    }
+
+    /* 加载动画 */
+    .btn-spinner {
+      display: inline-block;
+      width: 16px; height: 16px;
+      border: 2px solid rgba(255,255,255,0.3);
+      border-top-color: #fff;
+      border-radius: 50%;
+      animation: spin 0.6s linear infinite;
+      vertical-align: middle;
+      margin-right: 6px;
+    }
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+
+    /* 底部提示 */
+    .login-footer {
+      text-align: center;
+      margin-top: 28px;
+      color: #556677;
+      font-size: 12px;
+      line-height: 1.8;
+    }
+    .login-footer a {
+      color: #4facfe;
+      text-decoration: none;
+    }
+    .login-footer a:hover {
+      text-decoration: underline;
+    }
+
+    /* 响应式 */
+    @media (max-width: 480px) {
+      .login-wrapper { width: 90%; }
+      .login-card { padding: 36px 24px 32px; }
+    }
+  </style>
+</head>
+<body>
+  <div class="bg-animation">
+    <div class="bg-circle"></div>
+    <div class="bg-circle"></div>
+    <div class="bg-circle"></div>
+  </div>
+
+  <div class="login-wrapper">
+    <div class="login-card">
+      <div class="logo-area">
+        <div class="logo-icon">🚗</div>
+        <h1>汽车产品营销 Agent</h1>
+        <p class="subtitle">AI 驱动的用户洞察与虚拟消费者仿真平台</p>
+      </div>
+
+      <div class="error-msg" id="errorMsg"></div>
+
+      <form id="loginForm" onsubmit="return false;">
+        <div class="form-group">
+          <label>账号</label>
+          <div class="input-wrapper">
+            <span class="input-icon">👤</span>
+            <input type="text" id="account" placeholder="请输入试用账号" autocomplete="username" required>
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label>密码</label>
+          <div class="input-wrapper">
+            <span class="input-icon">🔒</span>
+            <input type="password" id="password" placeholder="请输入密码" autocomplete="current-password" required>
+          </div>
+        </div>
+
+        <button type="submit" class="btn-login" id="btnLogin" onclick="handleLogin()">
+          登 录
+        </button>
+      </form>
+
+      <div class="login-footer">
+        如需试用账号，请联系管理员开通<br>
+        <span style="color:#445566;">管理员后台 → </span>
+        <a href="admin.html">Admin Panel</a>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    var isLoginProcessing = false;
+
+    // 页面加载时先检查是否已登录
+    (async function init() {
+      if (!window.SUPABASE_READY) {
+        // 开发模式：无 Supabase 配置时直接跳转
+        console.warn('[Login] Supabase 未配置，直接进入平台');
+        window.location.href = 'index.html';
+        return;
+      }
+
+      initSupabase();
+      var loggedIn = await window.Auth.isLoggedIn();
+      if (loggedIn) {
+        var isAdmin = await window.Auth.isAdmin();
+        if (isAdmin) {
+          window.location.href = 'admin.html';
+        } else {
+          window.location.href = 'index.html';
+        }
+        return;
+      }
+
+      // 回车键登录
+      document.getElementById('password').addEventListener('keydown', function(e) {
+        if (e.key === 'Enter') handleLogin();
+      });
+    })();
+
+    function showError(msg) {
+      var el = document.getElementById('errorMsg');
+      el.textContent = msg;
+      el.classList.add('show');
+      setTimeout(function() { el.classList.remove('show'); }, 5000);
+    }
+
+    function setLoading(loading) {
+      isLoginProcessing = loading;
+      var btn = document.getElementById('btnLogin');
+      var inputs = document.querySelectorAll('input');
+      if (loading) {
+        btn.innerHTML = '<span class="btn-spinner"></span>登录中...';
+        btn.disabled = true;
+        inputs.forEach(function(i) { i.disabled = true; });
+      } else {
+        btn.innerHTML = '登 录';
+        btn.disabled = false;
+        inputs.forEach(function(i) { i.disabled = false; });
+      }
+    }
+
+    async function handleLogin() {
+      if (isLoginProcessing) return;
+
+      var account = document.getElementById('account').value.trim();
+      var password = document.getElementById('password').value;
+
+      if (!account || !password) {
+        showError('请输入账号和密码');
+        return;
+      }
+
+      setLoading(true);
+
+      try {
+        var data = await window.Auth.login(account, password);
+        console.log('[Login] 登录成功:', data.user.email);
+
+        var isAdmin = await window.Auth.isAdmin();
+        if (isAdmin) {
+          window.location.href = 'admin.html';
+        } else {
+          window.location.href = 'index.html';
+        }
+      } catch (e) {
+        console.error('[Login] 登录失败:', e);
+        var message = '登录失败，请检查账号和密码';
+        if (e.message && e.message.includes('Invalid login')) {
+          message = '账号或密码错误，请重试';
+        } else if (e.message && e.message.includes('Email not confirmed')) {
+          message = '账号邮箱尚未验证，请联系管理员';
+        }
+        showError(message);
+        setLoading(false);
+      }
+    }
+  </script>
+</body>
+</html>

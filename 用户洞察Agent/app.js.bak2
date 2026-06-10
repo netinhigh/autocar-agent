@@ -1,0 +1,3114 @@
+﻿console.log('app.js 已加载');
+const outlineDefaults = [
+  "开场确认：家庭结构、当前车辆、日常出行半径、是否有固定车位。",
+  "购车动机：为什么考虑纯电SUV，当前车辆有哪些无法满足的地方。",
+  "核心需求：空间、续航、补能、智能座舱、智驾、安全、价格的优先级排序。",
+  "真实场景：通勤、接送孩子、周末出游、长途返乡、冬季用车的具体经历。",
+  "本品评价：对外观、空间、座舱交互、续航可信度、品牌服务的看法。",
+  "竞品对比：为什么关注竞品B/C，哪些优势会影响最终选择。",
+  "成交阻力：预算、金融方案、保值率、家人意见、售后与补能顾虑。",
+  "收尾验证：一句话描述理想车型，确认最能打动用户的营销表达。"
+];
+
+const transcriptLines = [
+  {
+    speaker: "用户A",
+    text: "我现在最担心的是冬天续航，官方数字看起来都不错，但我朋友说实际会打折。",
+    tag: "情绪：谨慎；信号：冬季续航可信度"
+  },
+  {
+    speaker: "主持人",
+    text: "您能说说这种担心会不会直接影响最终购买吗？",
+    tag: "已追问：成交阻力"
+  },
+  {
+    speaker: "用户A",
+    text: "会，尤其我们过年要回老家。不是不能充电，是不想路上一直计划这些事情。",
+    tag: "信号：长途返乡；痛点：补能规划压力"
+  },
+  {
+    speaker: "用户A",
+    text: "智能座舱我挺喜欢，孩子在后排能安静一点，但有些功能太复杂我也不会天天用。",
+    tag: "信号：家庭场景；需求：简单好用"
+  },
+  {
+    speaker: "用户A",
+    text: "竞品B我觉得品牌更稳，但你们这个车的内饰和屏幕体验更有新鲜感。",
+    tag: "竞品对比：品牌信任 vs 座舱体验"
+  }
+];
+
+const questionState = [
+  { text: "家庭结构与用车场景", done: true },
+  { text: "购买动机与预算范围", done: true },
+  { text: "续航和补能顾虑", done: true },
+  { text: "智能座舱真实价值", done: false },
+  { text: "竞品B/C选择原因", done: false },
+  { text: "最终成交阻力", done: false }
+];
+
+const personaData = [
+  {
+    title: "年轻家庭增换购用户",
+    text: "25-35岁，已有孩子或计划扩大家庭，关注空间、安全、补能便利和智能座舱体验。",
+    tags: ["家庭出行", "价格敏感", "重视安全"]
+  },
+  {
+    title: "竞品观望用户",
+    text: "对竞品品牌信任度较高，但容易被更好的座舱体验、配置和金融方案打动。",
+    tags: ["横向比较", "品牌摇摆", "配置驱动"]
+  },
+  {
+    title: "科技体验型用户",
+    text: "喜欢新鲜的交互体验和智驾功能，但需要证明这些功能稳定、易用、可持续升级。",
+    tags: ["智能座舱", "智驾兴趣", "体验优先"]
+  },
+  {
+    title: "稳健实用型用户",
+    text: "不排斥新技术，但最终看重可靠性、售后服务、保值率和真实续航。",
+    tags: ["可靠性", "售后", "真实续航"]
+  }
+];
+
+const competitorData = [
+  {
+    name: "本品牌A车型",
+    scores: { 座舱: 88, 空间: 82, 续航信任: 64, 价格: 76 }
+  },
+  {
+    name: "竞品B车型",
+    scores: { 座舱: 70, 空间: 78, 续航信任: 82, 价格: 68 }
+  },
+  {
+    name: "竞品C车型",
+    scores: { 座舱: 74, 空间: 80, 续航信任: 76, 价格: 72 }
+  }
+];
+
+const strategies = [
+  {
+    title: "核心传播主张",
+    text: "把“家庭长途不焦虑”和“孩子也喜欢的智能座舱”作为双主线，减少抽象技术表达。"
+  },
+  {
+    title: "试驾设计",
+    text: "设置冬季续航解释、后排亲子体验、自动泊车和城区辅助驾驶四个固定体验点。"
+  },
+  {
+    title: "目标客群筛选",
+    text: "优先锁定有孩子、计划增换购、关注竞品B但对智能体验有期待的家庭用户。"
+  },
+  {
+    title: "成交辅助",
+    text: "用真实车主长途案例、补能路线演示和保养权益降低用户对新品牌的犹豫。"
+  }
+];
+
+const knowledgeItems = [
+  {
+    title: "冬季续航不是数字问题，而是可信度问题",
+    text: "用户不只关心CLTC或实际续航，更关心遇到低温、返乡、高速时是否需要额外规划。",
+    meta: ["续航", "家庭长途", "成交阻力"]
+  },
+  {
+    title: "智能座舱对家庭用户的价值来自陪伴和省心",
+    text: "后排娱乐、语音控制、儿童场景比炫技式功能更容易被年轻家庭记住。",
+    meta: ["智能座舱", "亲子场景", "产品卖点"]
+  },
+  {
+    title: "竞品品牌信任强，但座舱体验存在突破口",
+    text: "竞品B被认为更稳，本品可以用试驾中的可感知体验建立差异化。",
+    meta: ["竞品B", "品牌信任", "试驾"]
+  }
+];
+
+let userSamples = [];
+
+const researchSessions = [
+  {
+    id: "S-001",
+    product: "本品牌A车型",
+    type: "一对一深访",
+    status: "已完成",
+    time: "2026-05-18 14:00",
+    goal: "了解年轻家庭对纯电SUV续航、空间和智能座舱的真实购买顾虑。",
+    audience: "25-35岁年轻家庭增换购用户",
+    host: "用户研究组 / 华东区",
+    duration: "60分钟",
+    signals: "冬季续航、亲子空间、后排娱乐、补能规划"
+  },
+  {
+    id: "S-002",
+    product: "本品牌A车型",
+    type: "焦点小组",
+    status: "进行中",
+    time: "2026-05-22 10:30",
+    goal: "验证智能座舱功能在家庭场景中的感知价值和传播表达。",
+    audience: "潜在用户、已试驾用户、竞品观望用户",
+    host: "产品营销组 / 上海体验中心",
+    duration: "90分钟",
+    signals: "语音交互、儿童模式、屏幕体验、功能复杂度"
+  },
+  {
+    id: "S-003",
+    product: "本品牌A车型",
+    type: "试驾回访",
+    status: "已完成",
+    time: "2026-05-27 16:00",
+    goal: "复盘试驾后用户对动力、智驾和座舱体验的评价变化。",
+    audience: "完成试驾但未下订用户",
+    host: "销售运营组 / 华南区",
+    duration: "45分钟",
+    signals: "智驾信任、成交阻力、金融方案、家人意见"
+  },
+  {
+    id: "S-004",
+    product: "竞品B车型",
+    type: "竞品车主访谈",
+    status: "已完成",
+    time: "2026-05-30 19:30",
+    goal: "理解竞品B车主选择原因，以及本品牌可突破的体验缺口。",
+    audience: "竞品B 6个月内新购车主",
+    host: "竞品洞察组 / 线上访谈",
+    duration: "60分钟",
+    signals: "品牌信任、补能便利、座舱新鲜感、售后口碑"
+  },
+  {
+    id: "S-005",
+    product: "本品牌B车型",
+    type: "概念测试",
+    status: "待开始",
+    time: "2026-06-06 15:00",
+    goal: "测试新车型外观、价格带和核心卖点对目标用户的吸引力。",
+    audience: "30-45岁家庭第二辆车意向用户",
+    host: "战略产品组 / 北京",
+    duration: "75分钟",
+    signals: "造型偏好、价格接受度、目标人群、卖点排序"
+  },
+  {
+    id: "S-006",
+    product: "本品牌B车型",
+    type: "销售线索回访",
+    status: "已完成",
+    time: "2026-06-01 11:00",
+    goal: "分析高意向线索流失原因，定位影响下订的最后阻力。",
+    audience: "留资后7天内未到店用户",
+    host: "增长运营组 / 线上外呼",
+    duration: "30分钟",
+    signals: "价格敏感、权益比较、到店阻力、竞品截流"
+  }
+];
+
+let transcriptIndex = 0;
+let isRecording = false;
+let progress = 42;
+let secondsLeft = 23 * 60 + 40;
+let timerId = null;
+let fullTranscriptLines = [];
+let currentSession = null;
+let pendingSessionStarted = false;
+let openSessions = []; // 定性调研打开的会话
+let activeSessionId = null; // 当前激活的定性调研ID
+let openQuantSessions = []; // 定量调研打开的会话
+let activeQuantSessionId = null; // 当前激活的定量调研ID
+let currentSurvey = null; // 当前编辑的问卷
+let questionCounter = 0; // 问题计数器
+
+// 调研对象详细信息数据结构
+const audienceDetailsTemplate = {
+  name: "",
+  gender: "",
+  age: "",
+  maritalStatus: "",
+  children: "",
+  city: "",
+  cityLevel: "",
+  education: "",
+  income: "",
+  carOwnership: "",
+  currentCar: "",
+  notes: ""
+};
+
+// 调研用户列表（支持多个用户）
+let currentAudienceList = [];
+
+// 兼容旧代码：如果只有一个用户，currentAudienceDetails 返回第一个用户
+let currentAudienceDetails = { ...audienceDetailsTemplate };
+
+const els = {
+  outlineList: document.getElementById("outlineList"),
+  transcriptFeed: document.getElementById("transcriptFeed"),
+  fullTranscriptText: document.getElementById("fullTranscriptText"),
+  transcriptStats: document.getElementById("transcriptStats"),
+  questionProgress: document.getElementById("questionProgress"),
+  nextSuggestion: document.getElementById("nextSuggestion"),
+  emotionNote: document.getElementById("emotionNote"),
+  progressMetric: document.getElementById("progressMetric"),
+  progressBar: document.getElementById("progressBar"),
+  timeMetric: document.getElementById("timeMetric"),
+  timerLarge: document.getElementById("timerLarge"),
+  liveState: document.getElementById("liveState"),
+  audioStatus: document.getElementById("audioStatus"),
+  videoStatus: document.getElementById("videoStatus"),
+  textStatus: document.getElementById("textStatus"),
+  captureBadge: document.getElementById("captureBadge"),
+  uploadedVideo: document.getElementById("uploadedVideo"),
+  uploadFileName: document.getElementById("uploadFileName"),
+  sessionGroups: document.getElementById("sessionGroups"),
+  sessionCount: document.getElementById("sessionCount"),
+  productFilter: document.getElementById("productFilter"),
+  typeFilter: document.getElementById("typeFilter"),
+  sessionFilter: document.getElementById("sessionFilter"),
+  researchTitle: document.getElementById("researchTitle"),
+  startSessionBanner: document.getElementById("startSessionBanner"),
+  startSessionBtn: document.getElementById("startSessionBtn"),
+  reportVideo: document.getElementById("reportVideo"),
+  reportAudio: document.getElementById("reportAudio"),
+  playbackStatus: document.getElementById("playbackStatus"),
+  closeSessionBtn: document.getElementById("closeSessionBtn")
+};
+
+function renderOutline(items = outlineDefaults) {
+  els.outlineList.innerHTML = items.map((item) => `<li contenteditable="true">${item}</li>`).join("");
+}
+
+function renderQuestions() {
+  els.questionProgress.innerHTML = questionState
+    .map((item) => {
+      const cls = item.done ? "done" : "pending";
+      const label = item.done ? "已覆盖" : "待追问";
+      return `<div class="question-item"><span>${item.text}</span><em class="pill ${cls}">${label}</em></div>`;
+    })
+    .join("");
+}
+
+function setStage(stage) {
+  const target = document.querySelector(`.segment[data-stage="${stage}"]`);
+  if (target?.classList.contains("hidden")) return;
+  document.querySelectorAll(".segment").forEach((button) => {
+    button.classList.toggle("active", button.dataset.stage === stage);
+  });
+  document.querySelectorAll(".stage").forEach((panel) => panel.classList.remove("active"));
+  document.getElementById(`${stage}Stage`).classList.add("active");
+}
+
+function setView(view) {
+  document.querySelectorAll(".nav-item").forEach((button) => {
+    button.classList.toggle("active", button.dataset.view === view);
+  });
+  document.querySelectorAll(".view").forEach((panel) => panel.classList.remove("active"));
+  document.getElementById(view).classList.add("active");
+  updateContextVisibility();
+}
+
+function showSubNav(sessionId, sessionName, type = 'qual') {
+  const containerId = type === 'quant' ? 'quantSubNavContainer' : 'qualSubNavContainer';
+  const subNavId = type === 'quant' ? 'quantSubNav' : 'qualSubNav';
+  
+  const container = document.getElementById(containerId);
+  const subNav = document.getElementById(subNavId);
+  
+  if (!sessionId) {
+    container.style.display = "none";
+    return;
+  }
+  
+  // 使用不同的数组存储定性和定量调研
+  const sessionsArray = type === 'quant' ? openQuantSessions : openSessions;
+  const activeIdVar = type === 'quant' ? activeQuantSessionId : activeSessionId;
+  
+  // 检查该会话是否已经打开
+  const existingSession = sessionsArray.find(s => s.id === sessionId);
+  if (!existingSession) {
+    sessionsArray.push({ id: sessionId, name: sessionName });
+  }
+  
+  if (type === 'quant') {
+    activeQuantSessionId = sessionId;
+  } else {
+    activeSessionId = sessionId;
+  }
+  
+  renderSubNavTabs(type);
+  container.style.display = "block";
+}
+
+function renderSubNavTabs(type = 'qual') {
+  const containerId = type === 'quant' ? 'quantSubNavContainer' : 'qualSubNavContainer';
+  const subNavId = type === 'quant' ? 'quantSubNav' : 'qualSubNav';
+  const sessionsArray = type === 'quant' ? openQuantSessions : openSessions;
+  const activeId = type === 'quant' ? activeQuantSessionId : activeSessionId;
+  
+  const subNav = document.getElementById(subNavId);
+  
+  if (sessionsArray.length === 0) {
+    document.getElementById(containerId).style.display = "none";
+    return;
+  }
+  
+  subNav.innerHTML = sessionsArray.map(session => `
+    <button class="sub-nav-item ${session.id === activeId ? 'active' : ''}" 
+            data-session="${session.id}" 
+            data-type="${type}"
+            type="button">
+      <span class="sub-nav-item-content">
+        <span class="sub-nav-icon">⬡</span>
+        ${session.name}
+      </span>
+      <span class="sub-nav-close" data-close-session="${session.id}" data-close-type="${type}" title="关闭此标签">×</span>
+    </button>
+  `).join("");
+  
+  // 添加点击事件 - 切换会话
+  subNav.querySelectorAll(".sub-nav-item").forEach(btn => {
+    btn.addEventListener("click", (e) => {
+      if (e.target.classList.contains("sub-nav-close")) return;
+      const sessionId = btn.dataset.session;
+      const sessionType = btn.dataset.type;
+      if (sessionType === 'quant') {
+        switchToQuantSession(sessionId);
+      } else {
+        switchToSession(sessionId);
+      }
+    });
+  });
+  
+  // 添加关闭按钮事件
+  subNav.querySelectorAll(".sub-nav-close").forEach(closeBtn => {
+    closeBtn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      const sessionId = closeBtn.dataset.closeSession;
+      const sessionType = closeBtn.dataset.closeType;
+      closeSessionTab(sessionId, sessionType);
+    });
+  });
+}
+
+function hideSubNav(type = 'qual') {
+  const containerId = type === 'quant' ? 'quantSubNavContainer' : 'qualSubNavContainer';
+  const container = document.getElementById(containerId);
+  container.style.display = "none";
+}
+
+function switchToSession(sessionId) {
+  const session = researchSessions.find((item) => item.id === sessionId);
+  if (!session) return;
+  
+  currentSession = session;
+  activeSessionId = sessionId;
+  
+  els.researchTitle.textContent = `${session.id} ${session.product}｜${session.type}`;
+  document.getElementById("goalInput").value = session.goal;
+  document.getElementById("productInput").value = session.product;
+  document.getElementById("durationInput").value = session.duration;
+  
+  // 加载调研对象详细信息（如果有）
+  if (session.audienceList && session.audienceList.length > 0) {
+    currentAudienceList = [...session.audienceList];
+  } else if (session.audienceDetails) {
+    // 兼容旧数据格式
+    currentAudienceList = [session.audienceDetails];
+  } else {
+    currentAudienceList = [];
+  }
+  
+  // 更新当前用户详情（取第一个用户用于兼容）
+  currentAudienceDetails = currentAudienceList.length > 0 ? currentAudienceList[0] : { ...audienceDetailsTemplate };
+  
+  // 渲染头像卡片
+  renderAudienceAvatars();
+  
+  const footerTitle = document.querySelector(".sidebar-footer strong");
+  if (footerTitle) footerTitle.textContent = `${session.id} ${session.product}`;
+  
+  const audienceSummary = formatAudienceSummary(currentAudienceList);
+  renderOutline([
+    `开场确认：核对${audienceSummary}的基本情况、购车阶段和真实用车场景。`,
+    `目标聚焦：围绕"${session.goal}"拆解用户最关心的决策因素。`,
+    `产品体验：收集用户对${session.product}外观、空间、座舱、智驾和补能的评价。`,
+    `场景追问：结合${session.signals}继续挖掘具体经历和高价值原话。`,
+    `收尾验证：确认影响用户最终选择的前三个因素和可打动用户的一句话表达。`
+  ]);
+  
+  renderSubNavTabs();
+  setView("research");
+  configureSessionStages(session);
+}
+
+function closeSessionTab(sessionId) {
+  // 从打开的会话列表中移除
+  openSessions = openSessions.filter(s => s.id !== sessionId);
+  
+  // 如果关闭的是当前激活的会话
+  if (sessionId === activeSessionId) {
+    if (openSessions.length > 0) {
+      // 切换到最后一个打开的会话
+      const lastSession = openSessions[openSessions.length - 1];
+      switchToSession(lastSession.id);
+    } else {
+      // 没有更多会话了，返回主页
+      activeSessionId = null;
+      currentSession = null;
+      els.closeSessionBtn.classList.add("hidden");
+      hideSubNav();
+      setView("overview");
+    }
+  } else {
+    // 只是刷新标签显示
+    renderSubNavTabs();
+  }
+}
+
+function closeSessionDetail() {
+  if (activeSessionId) {
+    closeSessionTab(activeSessionId);
+  } else {
+    currentSession = null;
+    els.closeSessionBtn.classList.add("hidden");
+    hideSubNav();
+    setView("overview");
+  }
+}
+
+function isLiveContextVisible() {
+  return currentSession?.status === "进行中" || pendingSessionStarted;
+}
+
+function updateContextVisibility() {
+  const researchActive = document.getElementById("research").classList.contains("active");
+  document.body.classList.toggle("context-hidden", !researchActive || !isLiveContextVisible());
+}
+
+function setAvailableStages(stages, activeStage) {
+  document.querySelectorAll(".segment").forEach((button) => {
+    const visible = stages.includes(button.dataset.stage);
+    button.classList.toggle("hidden", !visible);
+  });
+
+  document.querySelectorAll(".stage").forEach((panel) => {
+    const stage = panel.id.replace("Stage", "");
+    panel.classList.toggle("locked", !stages.includes(stage));
+  });
+
+  setStage(activeStage);
+}
+
+function configureSessionStages(session) {
+  const status = session?.status || "待开始";
+  pendingSessionStarted = false;
+  els.startSessionBanner.classList.add("hidden");
+
+  if (status === "已完成") {
+    setAvailableStages(["report"], "report");
+    renderReportContent();
+    updateContextVisibility();
+    return;
+  }
+
+  if (status === "待开始") {
+    setAvailableStages(["prepare"], "prepare");
+    els.startSessionBanner.classList.remove("hidden");
+    updateContextVisibility();
+    return;
+  }
+
+  setAvailableStages(["prepare", "live", "report"], "live");
+  updateContextVisibility();
+}
+
+function fillSelect(select, values, defaultLabel) {
+  select.innerHTML = [`<option value="">${defaultLabel}</option>`]
+    .concat(values.map((value) => `<option value="${value}">${value}</option>`))
+    .join("");
+}
+
+function renderSessionFilters() {
+  fillSelect(els.productFilter, [...new Set(researchSessions.map((item) => item.product))], "全部产品");
+  fillSelect(els.typeFilter, [...new Set(researchSessions.map((item) => item.type))], "全部类型");
+  fillSelect(els.sessionFilter, researchSessions.map((item) => item.id), "全部场次");
+}
+
+function getFilteredSessions() {
+  return researchSessions.filter((item) => {
+    const productMatched = !els.productFilter.value || item.product === els.productFilter.value;
+    const typeMatched = !els.typeFilter.value || item.type === els.typeFilter.value;
+    const sessionMatched = !els.sessionFilter.value || item.id === els.sessionFilter.value;
+    return productMatched && typeMatched && sessionMatched;
+  });
+}
+
+function statusClass(status) {
+  if (status === "进行中") return "running";
+  if (status === "待开始") return "pending";
+  return "";
+}
+
+function renderSessions() {
+  const sessions = getFilteredSessions();
+  els.sessionCount.textContent = String(sessions.length);
+  const grouped = sessions.reduce((groups, item) => {
+    const key = `${item.product} / ${item.type}`;
+    groups[key] = groups[key] || [];
+    groups[key].push(item);
+    return groups;
+  }, {});
+
+  els.sessionGroups.innerHTML = Object.entries(grouped).map(([groupName, items]) => `
+    <section class="summary-group">
+      <div class="summary-group-title">
+        <h3>${groupName}</h3>
+        <span>${items.length}场</span>
+      </div>
+      <div class="summary-card-grid">
+        ${items.map((item) => {
+          const users = typeof userSamples !== 'undefined' ? userSamples.filter((u) => u.sessionId === item.id) : [];
+          const userCount = users.length;
+          const userAvatars = users.slice(0, 4).map((u, i) => {
+            const initials = u.name ? u.name.charAt(0) : 'U';
+            const colors = ['#3b82f6', '#22d3ee', '#34d399', '#f59e0b'];
+            const color = colors[i % colors.length];
+            return `<span class="session-user-avatar" style="background:${color};margin-left:${i > 0 ? '-8px' : '0'}">${initials}</span>`;
+          }).join('');
+          const moreCount = userCount > 4 ? `<span class="session-user-more">+${userCount - 4}</span>` : '';
+          const userListHtml = users.map((u) => {
+            const tags = [u.gender, `${u.age}岁`, u.city, u.maritalStatus].filter(Boolean).join(' · ');
+            return `<div class="session-user-item">${u.name || u.id} (${tags})</div>`;
+          }).join('');
+          return `
+          <div class="summary-card" data-session-id="${item.id}" role="button" tabindex="0">
+            <div class="summary-card-top">
+              <span class="session-no">${item.id}</span>
+              <span class="session-status ${statusClass(item.status)}">${item.status}</span>
+            </div>
+            <h4>${item.product}</h4>
+            <p>${item.goal}</p>
+            <div class="summary-card-meta">
+              <span>${item.type}</span>
+              <span>${item.time}</span>
+            </div>
+            <div class="session-user-bar">
+              <div class="session-user-avatars">${userAvatars}${moreCount}</div>
+              <span class="session-user-count">${userCount}位用户</span>
+            </div>
+            <div class="session-hover" aria-hidden="true">
+              <dl>
+                <dt>开展时间</dt><dd>${item.time}</dd>
+                <dt>调研目的</dt><dd>${item.goal}</dd>
+                <dt>调研对象</dt><dd>${item.audience}</dd>
+                <dt>用户列表</dt><dd class="session-user-list">${userListHtml || '暂无用户'}</dd>
+                <dt>主持团队</dt><dd>${item.host}</dd>
+                <dt>访谈时长</dt><dd>${item.duration}</dd>
+                <dt>关键信号</dt><dd>${item.signals}</dd>
+              </dl>
+            </div>
+          </div>
+        `}).join("")}
+      </div>
+    </section>
+  `).join("") || `<div class="summary-card"><h4>暂无匹配场次</h4><p>请调整产品、类型或场次号筛选条件。</p></div>`;
+
+  const cards = document.querySelectorAll(".summary-card[data-session-id]");
+  console.log(`找到 ${cards.length} 个调研卡片`);
+  
+  cards.forEach((card) => {
+    console.log(`绑定点击事件到卡片: ${card.dataset.sessionId}`);
+    card.addEventListener("click", (e) => {
+      console.log(`点击了卡片: ${card.dataset.sessionId}`);
+      e.stopPropagation();
+      openSessionDetail(card.dataset.sessionId);
+    });
+    card.addEventListener("keydown", (e) => {
+      if (e.key === "Enter" || e.key === " ") {
+        e.preventDefault();
+        openSessionDetail(card.dataset.sessionId);
+      }
+    });
+  });
+}
+
+function openSessionDetail(sessionId) {
+  const session = researchSessions.find((item) => item.id === sessionId);
+  if (!session) return;
+
+  currentSession = session;
+  els.researchTitle.textContent = `${session.id} ${session.product}｜${session.type}`;
+  document.getElementById("goalInput").value = session.goal;
+  document.getElementById("productInput").value = session.product;
+  document.getElementById("durationInput").value = session.duration;
+  
+  // 从 userSamples 按 sessionId 加载该场次的用户
+  const sessionUsers = userSamples.filter((u) => u.sessionId === sessionId);
+  if (sessionUsers.length > 0) {
+    currentAudienceList = sessionUsers.map((u) => ({
+      name: u.name || u.id,
+      gender: u.gender,
+      age: String(u.age),
+      maritalStatus: u.maritalStatus,
+      children: u.children,
+      city: u.city,
+      cityLevel: u.cityLevel,
+      education: u.education,
+      income: u.income,
+      carOwnership: u.carOwnership,
+      currentCar: u.currentCar,
+      notes: u.notes
+    }));
+  } else if (session.audienceList && session.audienceList.length > 0) {
+    currentAudienceList = [...session.audienceList];
+  } else if (session.audienceDetails) {
+    currentAudienceList = [session.audienceDetails];
+  } else {
+    currentAudienceList = [];
+  }
+  
+  // 更新当前用户详情（取第一个用户用于兼容）
+  currentAudienceDetails = currentAudienceList.length > 0 ? currentAudienceList[0] : { ...audienceDetailsTemplate };
+  
+  // 渲染头像卡片
+  renderAudienceAvatars();
+  
+  const footerTitle = document.querySelector(".sidebar-footer strong");
+  if (footerTitle) footerTitle.textContent = `${session.id} ${session.product}`;
+  
+  const audienceSummary = formatAudienceSummary(currentAudienceList);
+  renderOutline([
+    `开场确认：核对${audienceSummary}的基本情况、购车阶段和真实用车场景。`,
+    `目标聚焦：围绕"${session.goal}"拆解用户最关心的决策因素。`,
+    `产品体验：收集用户对${session.product}外观、空间、座舱、智驾和补能的评价。`,
+    `场景追问：结合${session.signals}继续挖掘具体经历和高价值原话。`,
+    `收尾验证：确认影响用户最终选择的前三个因素和可打动用户的一句话表达。`
+  ]);
+  
+  // 显示二级标签
+  const shortName = `${session.id} ${session.product}`;
+  showSubNav(sessionId, shortName);
+  
+  // 显示关闭按钮
+  els.closeSessionBtn.classList.remove("hidden");
+  
+  setView("research");
+  configureSessionStages(session);
+}
+
+function startPendingSession() {
+  if (!currentSession) return;
+  pendingSessionStarted = true;
+  currentSession.status = "进行中";
+  // 保存用户列表到会话
+  currentSession.audienceList = [...currentAudienceList];
+  els.startSessionBanner.classList.add("hidden");
+  setAvailableStages(["prepare", "live", "report"], "live");
+  updateContextVisibility();
+  updateCaptureStatus(true, document.querySelector(".video-feed").classList.contains("has-upload"));
+  els.liveState.textContent = "记录中";
+  if (!isRecording) {
+    isRecording = true;
+    document.getElementById("recordBtn").textContent = "暂停实时记录";
+    addTranscriptLine();
+  }
+  window.clearInterval(timerId);
+  timerId = window.setInterval(() => {
+    secondsLeft = Math.max(0, secondsLeft - 1);
+    updateTimer();
+  }, 1000);
+}
+
+function updateProgress(value) {
+  progress = Math.min(100, value);
+  els.progressMetric.textContent = `${progress}%`;
+  els.progressBar.style.width = `${progress}%`;
+}
+
+function formatTime(totalSeconds) {
+  const minutes = Math.floor(totalSeconds / 60);
+  const seconds = totalSeconds % 60;
+  return `${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}`;
+}
+
+function updateTimer() {
+  const value = formatTime(secondsLeft);
+  els.timeMetric.textContent = value;
+  els.timerLarge.textContent = value;
+}
+
+function updateCaptureStatus(active, uploaded = false) {
+  els.audioStatus.textContent = active ? "音频：采集中" : "音频：待开始";
+  els.videoStatus.textContent = active ? "视频：采集中" : uploaded ? "视频：已上传" : "视频：待开始";
+  els.textStatus.textContent = active ? "文本：同步生成中" : fullTranscriptLines.length ? "文本：已生成" : "文本：待同步";
+  els.captureBadge.textContent = active ? "音频 / 视频 / 文本同步中" : uploaded ? "视频文件已接入" : "音频 / 视频待采集";
+  [els.audioStatus, els.videoStatus, els.textStatus].forEach((node) => {
+    node.classList.toggle("active", active || node === els.videoStatus && uploaded || node === els.textStatus && fullTranscriptLines.length > 0);
+  });
+}
+
+function syncFullTranscript() {
+  const text = fullTranscriptLines.join("\n");
+  els.fullTranscriptText.value = text;
+  els.transcriptStats.textContent = `${fullTranscriptLines.length}条发言 · ${text.replace(/\s/g, "").length}字`;
+  if (!isRecording) {
+    updateCaptureStatus(false, document.querySelector(".video-feed").classList.contains("has-upload"));
+  }
+}
+
+function appendFullTranscript(item) {
+  const lineNumber = String(fullTranscriptLines.length + 1).padStart(2, "0");
+  fullTranscriptLines.push(`${lineNumber}. ${item.speaker}：${item.text}`);
+  syncFullTranscript();
+}
+
+function addTranscriptLine() {
+  const item = transcriptLines[transcriptIndex % transcriptLines.length];
+  const node = document.createElement("div");
+  node.className = "line";
+  node.innerHTML = `<strong>${item.speaker}</strong><p>${item.text}</p><span class="tag">${item.tag}</span>`;
+  els.transcriptFeed.appendChild(node);
+  els.transcriptFeed.scrollTop = els.transcriptFeed.scrollHeight;
+  appendFullTranscript(item);
+  transcriptIndex += 1;
+
+  if (transcriptIndex === 1) {
+    els.nextSuggestion.textContent = "追问冬季续航是否发生在返乡、高速或低温城市，区分真实经历和听说担忧。";
+    els.emotionNote.textContent = "用户谈到续航时停顿明显，担忧强度较高，建议让用户讲具体场景。";
+  } else if (transcriptIndex === 3) {
+    questionState[3].done = true;
+    els.nextSuggestion.textContent = "进入竞品B/C对比，确认品牌信任和座舱体验哪个更影响成交。";
+  } else if (transcriptIndex >= 5) {
+    questionState[4].done = true;
+    els.nextSuggestion.textContent = "收束到最终购买阻力：预算、家人意见、保值率和售后服务。";
+  }
+
+  renderQuestions();
+  updateProgress(progress + 9);
+  document.getElementById("signalMetric").textContent = String(8 + transcriptIndex);
+}
+
+function startRecording() {
+  isRecording = !isRecording;
+  const recordBtn = document.getElementById("recordBtn");
+  recordBtn.textContent = isRecording ? "暂停实时记录" : "继续实时记录";
+  els.liveState.textContent = isRecording ? "记录中" : "已暂停";
+  updateCaptureStatus(isRecording, document.querySelector(".video-feed").classList.contains("has-upload"));
+
+  if (isRecording) {
+    addTranscriptLine();
+    timerId = window.setInterval(() => {
+      secondsLeft = Math.max(0, secondsLeft - 1);
+      updateTimer();
+    }, 1000);
+  } else {
+    window.clearInterval(timerId);
+    updateCaptureStatus(false, document.querySelector(".video-feed").classList.contains("has-upload"));
+  }
+}
+
+function handleVideoUpload(event) {
+  const file = event.target.files?.[0];
+  if (!file) return;
+
+  const videoUrl = URL.createObjectURL(file);
+  els.uploadedVideo.src = videoUrl;
+  els.uploadedVideo.parentElement.classList.add("has-upload");
+  els.uploadFileName.textContent = `${file.name} · ${(file.size / 1024 / 1024).toFixed(1)}MB`;
+  els.liveState.textContent = "视频已接入";
+  updateCaptureStatus(isRecording, true);
+
+  const item = {
+    speaker: "系统",
+    text: `已上传视频文件《${file.name}》，可用于后续音视频同步转写、情绪动作识别和完整对话文本生成。`,
+    tag: "视频上传：等待AI转写"
+  };
+  const node = document.createElement("div");
+  node.className = "line";
+  node.innerHTML = `<strong>${item.speaker}</strong><p>${item.text}</p><span class="tag">${item.tag}</span>`;
+  els.transcriptFeed.appendChild(node);
+  els.transcriptFeed.scrollTop = els.transcriptFeed.scrollHeight;
+  appendFullTranscript(item);
+}
+
+async function copyTranscript() {
+  const text = els.fullTranscriptText.value.trim();
+  if (!text) {
+    els.transcriptStats.textContent = "暂无可复制文本";
+    return;
+  }
+
+  try {
+    await navigator.clipboard.writeText(text);
+    els.transcriptStats.textContent = `${fullTranscriptLines.length}条发言 · 已复制全文`;
+  } catch {
+    els.fullTranscriptText.select();
+    els.transcriptStats.textContent = "已选中文本，可手动复制";
+  }
+}
+
+function clearTranscript() {
+  fullTranscriptLines = [];
+  transcriptIndex = 0;
+  els.transcriptFeed.innerHTML = "";
+  syncFullTranscript();
+}
+
+function generateOutline(event) {
+  event.preventDefault();
+  const goal = document.getElementById("goalInput").value.trim();
+  const audience = formatAudienceSummary(currentAudienceList);
+  const product = document.getElementById("productInput").value.trim();
+  const duration = document.getElementById("durationInput").value.trim();
+  const generated = [
+    `开场确认：围绕“${audience}”确认用户背景、当前车辆、家庭成员和日常出行半径。`,
+    `需求探索：基于“${goal}”追问购车动机、替换现车原因和理想车型标准。`,
+    `产品体验：针对“${product}”收集外观、空间、座舱、智驾、续航、服务的真实评价。`,
+    "场景复盘：让用户讲一次通勤、接送孩子、周末出游或长途返乡的完整用车经历。",
+    "竞品对比：追问用户为什么考虑竞品，以及本品需要做到什么才会改变选择。",
+    "成交阻力：拆解预算、续航可信度、家人意见、保值率、售后和补能焦虑。",
+    `时间控制：按${duration}设计阶段节奏，最后5分钟确认最打动用户的一句话卖点。`
+  ];
+  renderOutline(generated);
+  if (currentSession?.status === "待开始" && !pendingSessionStarted) {
+    els.startSessionBanner.classList.remove("hidden");
+    return;
+  }
+  setStage("live");
+}
+
+function renderReportContent() {
+  document.getElementById("insightList").innerHTML = [
+    "目标用户并不排斥纯电SUV，核心顾虑集中在冬季续航可信度和长途补能规划。",
+    "智能座舱最能打动年轻家庭的不是技术参数，而是孩子安静、操作省心、家人愿意坐。",
+    "竞品B的品牌信任仍有优势，本品应通过试驾体验和真实车主案例降低不确定感。",
+    "营销表达应减少抽象技术词，转向真实家庭场景和可验证的使用证据。"
+  ].map((item) => `<li>${item}</li>`).join("");
+
+  document.getElementById("personaSummary").innerHTML = `
+    <p><strong>核心人群：</strong>25-35岁年轻家庭增换购用户。</p>
+    <p><strong>关键需求：</strong>可靠续航、亲子空间、易用智能座舱、清晰金融方案。</p>
+    <p><strong>成交触发：</strong>试驾中感知到座舱价值，并看到真实长途补能案例。</p>
+  `;
+
+  els.playbackStatus.textContent = currentSession?.status === "已完成" ? "访谈资料已归档" : "可在调研结束后归档回放";
+  if (els.uploadedVideo.src) {
+    els.reportVideo.src = els.uploadedVideo.src;
+    els.reportAudio.src = els.uploadedVideo.src;
+  } else {
+    els.reportVideo.removeAttribute("src");
+    els.reportAudio.removeAttribute("src");
+  }
+}
+
+function renderReport() {
+  renderReportContent();
+  setView("research");
+  setStage("report");
+}
+
+function renderPersona() {
+  document.getElementById("personaCards").innerHTML = personaData.map((item) => `
+    <article class="persona-card">
+      <h3>${item.title}</h3>
+      <p>${item.text}</p>
+      <div class="knowledge-meta">${item.tags.map((tag) => `<span>${tag}</span>`).join("")}</div>
+    </article>
+  `).join("");
+}
+
+function renderCompetitors() {
+  document.getElementById("competitorMatrix").innerHTML = competitorData.map((item) => `
+    <article class="matrix-card">
+      <h3>${item.name}</h3>
+      <div class="score">
+        ${Object.entries(item.scores).map(([label, score]) => `
+          <div class="score-row">
+            <span>${label}</span>
+            <div class="bar"><i style="width: ${score}%"></i></div>
+            <strong>${score}</strong>
+          </div>
+        `).join("")}
+      </div>
+    </article>
+  `).join("");
+}
+
+function renderStrategies() {
+  document.getElementById("strategyCards").innerHTML = strategies.map((item) => `
+    <article class="strategy-card">
+      <h3>${item.title}</h3>
+      <p>${item.text}</p>
+    </article>
+  `).join("");
+}
+
+function renderKnowledge(filter = "") {
+  const normalized = filter.trim().toLowerCase();
+  const list = knowledgeItems.filter((item) => {
+    const haystack = `${item.title} ${item.text} ${item.meta.join(" ")}`.toLowerCase();
+    return haystack.includes(normalized);
+  });
+
+  document.getElementById("knowledgeList").innerHTML = list.map((item) => `
+    <article class="knowledge-item">
+      <h3>${item.title}</h3>
+      <p>${item.text}</p>
+      <div class="knowledge-meta">${item.meta.map((tag) => `<span>${tag}</span>`).join("")}</div>
+    </article>
+  `).join("");
+}
+
+function resetDemo() {
+  currentSession = null;
+  activeSessionId = null;
+  openSessions = [];
+  activeQuantSessionId = null;
+  openQuantSessions = [];
+  currentSurvey = null;
+  pendingSessionStarted = false;
+  transcriptIndex = 0;
+  isRecording = false;
+  fullTranscriptLines = [];
+  secondsLeft = 23 * 60 + 40;
+  progress = 42;
+  window.clearInterval(timerId);
+  questionState.forEach((item, index) => {
+    item.done = index < 3;
+  });
+  els.transcriptFeed.innerHTML = "";
+  els.fullTranscriptText.value = "";
+  els.transcriptStats.textContent = "0条发言 · 0字";
+  els.uploadedVideo.removeAttribute("src");
+  els.uploadedVideo.parentElement.classList.remove("has-upload");
+  els.uploadFileName.textContent = "支持访谈视频、试驾回访视频、焦点小组录像";
+  els.liveState.textContent = "待开始";
+  document.getElementById("recordBtn").textContent = "开始实时记录";
+  document.getElementById("signalMetric").textContent = "8";
+  els.nextSuggestion.textContent = "先确认用户家庭成员结构，再进入真实用车场景。";
+  els.emotionNote.textContent = "用户语速放慢，谈到冬季续航时出现停顿，建议追问真实经历。";
+  updateProgress(42);
+  updateTimer();
+  updateCaptureStatus(false, false);
+  renderQuestions();
+  renderOutline();
+  setAvailableStages(["prepare", "live", "report"], "prepare");
+  els.startSessionBanner.classList.add("hidden");
+  hideSubNav('qual');
+  hideSubNav('quant');
+  els.closeSessionBtn.classList.add("hidden");
+  renderSessions();
+  renderSurveys();
+  // 初始化渲染用户头像卡片
+  renderAudienceAvatars();
+  setView("overview");
+  setStage("prepare");
+}
+
+document.querySelectorAll(".nav-item").forEach((button) => {
+  console.log(`绑定导航点击事件: ${button.dataset.view}`);
+  button.addEventListener("click", () => {
+    console.log(`点击了导航: ${button.dataset.view}`);
+    const view = button.dataset.view;
+    
+    // 定性调研（原用户调研）
+    if (view === "overview") {
+      if (openSessions.length > 0) {
+        renderSubNavTabs('qual');
+      } else {
+        hideSubNav('qual');
+      }
+    }
+    // 定量调研
+    else if (view === "quantOverview") {
+      if (openQuantSessions.length > 0) {
+        renderSubNavTabs('quant');
+      } else {
+        hideSubNav('quant');
+      }
+    }
+    
+    console.log(`切换到视图: ${view}`);
+    setView(view);
+  });
+});
+
+document.querySelectorAll(".segment").forEach((button) => {
+  button.addEventListener("click", () => setStage(button.dataset.stage));
+});
+
+els.closeSessionBtn.addEventListener("click", closeSessionDetail);
+
+document.getElementById("briefForm").addEventListener("submit", generateOutline);
+document.getElementById("recordBtn").addEventListener("click", startRecording);
+document.getElementById("nextLineBtn").addEventListener("click", addTranscriptLine);
+document.getElementById("videoUpload").addEventListener("change", handleVideoUpload);
+document.getElementById("copyTranscriptBtn").addEventListener("click", copyTranscript);
+document.getElementById("clearTranscriptBtn").addEventListener("click", clearTranscript);
+els.startSessionBtn.addEventListener("click", startPendingSession);
+document.getElementById("generateReportBtn").addEventListener("click", renderReport);
+document.getElementById("resetBtn").addEventListener("click", resetDemo);
+document.getElementById("editOutlineBtn").addEventListener("click", () => {
+  els.outlineList.querySelector("li")?.focus();
+});
+document.getElementById("knowledgeSearch").addEventListener("input", (event) => {
+  renderKnowledge(event.target.value);
+});
+els.productFilter.addEventListener("change", renderSessions);
+els.typeFilter.addEventListener("change", renderSessions);
+els.sessionFilter.addEventListener("change", renderSessions);
+document.getElementById("clearFiltersBtn").addEventListener("click", () => {
+  els.productFilter.value = "";
+  els.typeFilter.value = "";
+  els.sessionFilter.value = "";
+  renderSessions();
+});
+
+renderSessionFilters();
+renderSessions();
+renderOutline();
+renderQuestions();
+renderPersona();
+renderCompetitors();
+renderStrategies();
+renderKnowledge();
+updateProgress(progress);
+updateTimer();
+updateCaptureStatus(false, false);
+updateContextVisibility();
+
+// ===== 定量调研模块数据 =====
+const surveyTemplates = [
+  {
+    id: "Q-001",
+    title: "纯电SUV用户满意度调查",
+    type: "satisfaction",
+    status: "active",
+    responses: 328,
+    targetSample: 500,
+    completionRate: 65.6,
+    npsScore: 42,
+    satisfaction: 4.2,
+    createTime: "2026-05-15",
+    description: "收集已购车用户对车辆各方面的满意度评价"
+  },
+  {
+    id: "Q-002",
+    title: "品牌认知度调研",
+    type: "brand",
+    status: "active",
+    responses: 156,
+    targetSample: 300,
+    completionRate: 52,
+    npsScore: 38,
+    satisfaction: 4.0,
+    createTime: "2026-05-20",
+    description: "了解目标用户对本品牌及竞品的认知程度"
+  },
+  {
+    id: "Q-003",
+    title: "NPS净推荐值测评",
+    type: "nps",
+    status: "closed",
+    responses: 500,
+    targetSample: 500,
+    completionRate: 100,
+    npsScore: 45,
+    satisfaction: 4.3,
+    createTime: "2026-04-10",
+    description: "季度NPS跟踪调研，衡量用户推荐意愿"
+  },
+  {
+    id: "Q-004",
+    title: "新车型配置偏好调查",
+    type: "product",
+    status: "draft",
+    responses: 0,
+    targetSample: 400,
+    completionRate: 0,
+    npsScore: null,
+    satisfaction: null,
+    createTime: "2026-06-01",
+    description: "测试用户对新车型各项配置的偏好和支付意愿"
+  }
+];
+
+const sampleQuestions = [
+  { type: "rating", text: "请对车辆的整体满意度打分", scale: 5 },
+  { type: "nps", text: "您向朋友或同事推荐本品牌的可能性有多大？", scale: 10 },
+  { type: "multiple", text: "您最看重的购车因素有哪些？", options: ["价格", "续航", "空间", "智能座舱", "品牌"] },
+  { type: "single", text: "您的年龄段是？", options: ["18-25岁", "26-35岁", "36-45岁", "46岁以上"] }
+];
+
+// ===== 定量调研功能函数 =====
+function renderSurveys() {
+  const statusFilter = document.getElementById("surveyStatusFilter")?.value || "";
+  const typeFilter = document.getElementById("surveyTypeFilter")?.value || "";
+  
+  const filtered = surveyTemplates.filter(s => {
+    const statusMatch = !statusFilter || s.status === statusFilter;
+    const typeMatch = !typeFilter || s.type === typeFilter;
+    return statusMatch && typeMatch;
+  });
+  
+  const grouped = filtered.reduce((groups, item) => {
+    const typeNames = {
+      satisfaction: "满意度调查",
+      nps: "NPS净推荐值",
+      brand: "品牌认知",
+      product: "产品偏好"
+    };
+    const key = typeNames[item.type] || item.type;
+    groups[key] = groups[key] || [];
+    groups[key].push(item);
+    return groups;
+  }, {});
+  
+  const container = document.getElementById("surveyGroups");
+  if (!container) return;
+  
+  container.innerHTML = Object.entries(grouped).map(([groupName, items]) => `
+    <section class="summary-group">
+      <div class="summary-group-title">
+        <h3>${groupName}</h3>
+        <span>${items.length}份问卷</span>
+      </div>
+      <div class="summary-card-grid">
+        ${items.map((item) => {
+          const statusClass = item.status === 'active' ? 'running' : item.status === 'draft' ? 'pending' : '';
+          const statusText = item.status === 'active' ? '收集中' : item.status === 'draft' ? '草稿' : '已关闭';
+          return `
+            <button class="summary-card" data-survey-id="${item.id}" type="button">
+              <div class="summary-card-top">
+                <span class="session-no">${item.id}</span>
+                <span class="session-status ${statusClass}">${statusText}</span>
+              </div>
+              <h4>${item.title}</h4>
+              <p>${item.description}</p>
+              <div class="summary-card-meta">
+                <span>回收: ${item.responses}/${item.targetSample}</span>
+                <span>完成率: ${item.completionRate}%</span>
+              </div>
+            </button>
+          `;
+        }).join("")}
+      </div>
+    </section>
+  `).join("") || `<div class="summary-card"><h4>暂无匹配问卷</h4><p>请调整筛选条件。</p></div>`;
+  
+  // 添加点击事件
+  document.querySelectorAll(".summary-card[data-survey-id]").forEach((card) => {
+    card.addEventListener("click", () => openSurveyDetail(card.dataset.surveyId));
+  });
+}
+
+function openSurveyDetail(surveyId) {
+  const survey = surveyTemplates.find(s => s.id === surveyId);
+  if (!survey) return;
+  
+  currentSurvey = survey;
+  
+  // 更新统计页面数据
+  document.getElementById("surveyStatsTitle").textContent = `${survey.id} ${survey.title}`;
+  document.getElementById("responseCount").textContent = survey.responses;
+  document.getElementById("completionRate").textContent = `${survey.completionRate}%`;
+  document.getElementById("npsScore").textContent = survey.npsScore !== null ? survey.npsScore : "--";
+  document.getElementById("satisfactionScore").textContent = survey.satisfaction !== null ? survey.satisfaction : "--";
+  
+  // 显示二级标签
+  showSubNav(surveyId, survey.title, 'quant');
+  
+  setView("surveyStats");
+}
+
+function switchToQuantSession(surveyId) {
+  openSurveyDetail(surveyId);
+}
+
+function closeSessionTab(sessionId, type = 'qual') {
+  if (type === 'quant') {
+    openQuantSessions = openQuantSessions.filter(s => s.id !== sessionId);
+    
+    if (sessionId === activeQuantSessionId) {
+      if (openQuantSessions.length > 0) {
+        const lastSession = openQuantSessions[openQuantSessions.length - 1];
+        switchToQuantSession(lastSession.id);
+      } else {
+        activeQuantSessionId = null;
+        currentSurvey = null;
+        hideSubNav('quant');
+        setView("quantOverview");
+      }
+    } else {
+      renderSubNavTabs('quant');
+    }
+  } else {
+    // 定性调研的关闭逻辑（原有）
+    openSessions = openSessions.filter(s => s.id !== sessionId);
+    
+    if (sessionId === activeSessionId) {
+      if (openSessions.length > 0) {
+        const lastSession = openSessions[openSessions.length - 1];
+        switchToSession(lastSession.id);
+      } else {
+        activeSessionId = null;
+        currentSession = null;
+        els.closeSessionBtn.classList.add("hidden");
+        hideSubNav('qual');
+        setView("overview");
+      }
+    } else {
+      renderSubNavTabs('qual');
+    }
+  }
+}
+
+// 问卷编辑器功能
+function openSurveyEditor(surveyId = null) {
+  questionCounter = 0;
+  const titleEl = document.getElementById("surveyEditorTitle");
+  
+  if (surveyId) {
+    const survey = surveyTemplates.find(s => s.id === surveyId);
+    if (survey) {
+      currentSurvey = survey;
+      titleEl.textContent = `编辑问卷: ${survey.title}`;
+      document.getElementById("surveyTitleInput").value = survey.title;
+      document.getElementById("surveyDescInput").value = survey.description;
+      document.getElementById("surveyTypeInput").value = survey.type;
+      // 加载已有问题（演示用示例问题）
+      renderQuestionList(sampleQuestions);
+    }
+  } else {
+    currentSurvey = null;
+    titleEl.textContent = "新建问卷";
+    document.getElementById("surveyForm").reset();
+    renderQuestionList([]);
+  }
+  
+  setView("surveyEditor");
+}
+
+function renderQuestionList(questions) {
+  const container = document.getElementById("questionList");
+  if (!container) return;
+  
+  container.innerHTML = questions.map((q, idx) => `
+    <li class="question-item-editor">
+      <div style="display: flex; justify-content: space-between; align-items: center;">
+        <div>
+          <strong>问题 ${idx + 1}</strong>
+          <span style="color: #94a3b8; font-size: 12px; margin-left: 8px;">[${getQuestionTypeLabel(q.type)}]</span>
+          <p style="margin: 4px 0 0; color: #aec3d5;">${q.text}</p>
+        </div>
+        <button class="ghost-btn" onclick="removeQuestion(${idx})" style="padding: 4px 8px; font-size: 12px;">删除</button>
+      </div>
+    </li>
+  `).join("") || '<p style="color: #94a3b8; text-align: center; padding: 20px;">暂无问题，点击"添加问题"开始创建</p>';
+}
+
+function getQuestionTypeLabel(type) {
+  const labels = {
+    rating: "评分题",
+    nps: "NPS题",
+    multiple: "多选题",
+    single: "单选题",
+    text: "开放题"
+  };
+  return labels[type] || type;
+}
+
+function addNewQuestion() {
+  questionCounter++;
+  const newQuestion = {
+    type: "single",
+    text: `新问题 ${questionCounter}`,
+    options: ["选项1", "选项2"]
+  };
+  
+  const container = document.getElementById("questionList");
+  const currentQuestions = Array.from(container.querySelectorAll(".question-item-editor")).length;
+  const questions = [];
+  for (let i = 0; i < currentQuestions; i++) {
+    questions.push({ type: "single", text: "现有问题", options: [] });
+  }
+  questions.push(newQuestion);
+  renderQuestionList(questions);
+}
+
+function removeQuestion(idx) {
+  // 简化处理：重新渲染时跳过该索引
+  const container = document.getElementById("questionList");
+  const items = container.querySelectorAll(".question-item-editor");
+  const questions = Array.from(items).map((item, i) => ({
+    type: "single",
+    text: `问题 ${i + 1}`,
+    options: []
+  })).filter((_, i) => i !== idx);
+  renderQuestionList(questions);
+}
+
+// ===== 定量调研模块数据结束 =====
+
+// ===== 用户样本库数据 =====
+// 为每个调研场次生成6个虚构用户
+userSamples = [
+  // S-001: 一对一深访 - 本品牌A车型
+  {
+    id: "U-001",
+    name: "张明",
+    product: "本品牌A车型",
+    researchType: "一对一深访",
+    researchDate: "2026-05-18",
+    sessionId: "S-001",
+    age: 28,
+    gender: "男",
+    maritalStatus: "已婚",
+    children: "1个孩子",
+    city: "杭州",
+    cityLevel: "二线",
+    education: "本科",
+    income: "30-50万",
+    carOwnership: "1辆燃油车",
+    currentCar: "本田思域",
+    hasChildren: true,
+    surveysCompleted: ["Q-001"],
+    notes: "关注冬季续航和亲子空间，计划过年回老家"
+  },
+  {
+    id: "U-002",
+    name: "李婷",
+    product: "本品牌A车型",
+    researchType: "一对一深访",
+    researchDate: "2026-05-18",
+    sessionId: "S-001",
+    age: 32,
+    gender: "女",
+    maritalStatus: "已婚",
+    children: "1个孩子",
+    city: "上海",
+    cityLevel: "一线",
+    education: "硕士",
+    income: "50-100万",
+    carOwnership: "1辆新能源车",
+    currentCar: "特斯拉Model 3",
+    hasChildren: true,
+    surveysCompleted: ["Q-001", "Q-002"],
+    notes: "增换购用户，对智能座舱要求高"
+  },
+  {
+    id: "U-003",
+    name: "王浩",
+    product: "本品牌A车型",
+    researchType: "一对一深访",
+    researchDate: "2026-05-18",
+    sessionId: "S-001",
+    age: 26,
+    gender: "女",
+    maritalStatus: "未婚",
+    children: "无子女",
+    city: "南京",
+    cityLevel: "二线",
+    education: "本科",
+    income: "20-30万",
+    carOwnership: "无车",
+    currentCar: "",
+    hasChildren: false,
+    surveysCompleted: ["Q-001"],
+    notes: "首购用户，预算有限但追求科技感"
+  },
+  {
+    id: "U-004",
+    name: "陈静",
+    product: "本品牌A车型",
+    researchType: "一对一深访",
+    researchDate: "2026-05-18",
+    sessionId: "S-001",
+    age: 35,
+    gender: "女",
+    maritalStatus: "已婚",
+    children: "2个孩子",
+    city: "苏州",
+    cityLevel: "二线",
+    education: "大专",
+    income: "30-50万",
+    carOwnership: "1辆燃油车",
+    currentCar: "丰田凯美瑞",
+    hasChildren: true,
+    surveysCompleted: ["Q-001"],
+    notes: "二胎家庭，空间和安全性是首要考虑"
+  },
+  {
+    id: "U-005",
+    name: "刘强",
+    product: "本品牌A车型",
+    researchType: "一对一深访",
+    researchDate: "2026-05-18",
+    sessionId: "S-001",
+    age: 30,
+    gender: "男",
+    maritalStatus: "已婚",
+    children: "计划生育",
+    city: "宁波",
+    cityLevel: "二线",
+    education: "本科",
+    income: "20-30万",
+    carOwnership: "1辆燃油车",
+    currentCar: "大众朗逸",
+    hasChildren: false,
+    surveysCompleted: ["Q-001"],
+    notes: "计划要孩子，提前考虑换车"
+  },
+  {
+    id: "U-006",
+    name: "赵敏",
+    product: "本品牌A车型",
+    researchType: "一对一深访",
+    researchDate: "2026-05-18",
+    sessionId: "S-001",
+    age: 29,
+    gender: "女",
+    maritalStatus: "已婚",
+    children: "1个孩子",
+    city: "无锡",
+    cityLevel: "二线",
+    education: "本科",
+    income: "30-50万",
+    carOwnership: "1辆新能源车",
+    currentCar: "比亚迪秦",
+    hasChildren: true,
+    surveysCompleted: ["Q-001"],
+    notes: "已有新能源用车经验，关注升级体验"
+  },
+
+  // S-002: 焦点小组 - 本品牌A车型
+  {
+    id: "U-007",
+    name: "孙磊",
+    product: "本品牌A车型",
+    researchType: "焦点小组",
+    researchDate: "2026-05-22",
+    sessionId: "S-002",
+    age: 29,
+    gender: "男",
+    maritalStatus: "未婚",
+    children: "无子女",
+    city: "北京",
+    cityLevel: "一线",
+    education: "硕士",
+    income: "30-50万",
+    carOwnership: "无车",
+    currentCar: "",
+    hasChildren: false,
+    surveysCompleted: ["Q-002"],
+    notes: "科技爱好者，对智能座舱很感兴趣"
+  },
+  {
+    id: "U-008",
+    name: "周芳",
+    product: "本品牌A车型",
+    researchType: "焦点小组",
+    researchDate: "2026-05-22",
+    sessionId: "S-002",
+    age: 33,
+    gender: "男",
+    maritalStatus: "已婚",
+    children: "1个孩子",
+    city: "上海",
+    cityLevel: "一线",
+    education: "本科",
+    income: "50-100万",
+    carOwnership: "1辆燃油车",
+    currentCar: "宝马3系",
+    hasChildren: true,
+    surveysCompleted: ["Q-001", "Q-002", "Q-003"],
+    notes: "竞品观望用户，对比多个品牌"
+  },
+  {
+    id: "U-009",
+    name: "吴娜",
+    product: "本品牌A车型",
+    researchType: "焦点小组",
+    researchDate: "2026-05-22",
+    sessionId: "S-002",
+    age: 27,
+    gender: "女",
+    maritalStatus: "未婚",
+    children: "无子女",
+    city: "深圳",
+    cityLevel: "一线",
+    education: "本科",
+    income: "20-30万",
+    carOwnership: "无车",
+    currentCar: "",
+    hasChildren: false,
+    surveysCompleted: ["Q-002"],
+    notes: "年轻白领，注重颜值和智能化"
+  },
+  {
+    id: "U-010",
+    name: "郑伟",
+    product: "本品牌A车型",
+    researchType: "焦点小组",
+    researchDate: "2026-05-22",
+    sessionId: "S-002",
+    age: 36,
+    gender: "男",
+    maritalStatus: "已婚",
+    children: "2个孩子",
+    city: "广州",
+    cityLevel: "一线",
+    education: "本科",
+    income: "50-100万",
+    carOwnership: "1辆燃油车",
+    currentCar: "奥迪Q5",
+    hasChildren: true,
+    surveysCompleted: ["Q-002"],
+    notes: "改善型购车，追求品质和空间"
+  },
+  {
+    id: "U-011",
+    name: "冯雪",
+    product: "本品牌A车型",
+    researchType: "焦点小组",
+    researchDate: "2026-05-22",
+    sessionId: "S-002",
+    age: 31,
+    gender: "女",
+    maritalStatus: "已婚",
+    children: "1个孩子",
+    city: "杭州",
+    cityLevel: "二线",
+    education: "硕士",
+    income: "30-50万",
+    carOwnership: "1辆新能源车",
+    currentCar: "小鹏P7",
+    hasChildren: true,
+    surveysCompleted: ["Q-002"],
+    notes: "已试驾用户，对智驾功能有疑问"
+  },
+  {
+    id: "U-012",
+    name: "钱涛",
+    product: "本品牌A车型",
+    researchType: "焦点小组",
+    researchDate: "2026-05-22",
+    sessionId: "S-002",
+    age: 34,
+    gender: "男",
+    maritalStatus: "已婚",
+    children: "1个孩子",
+    city: "成都",
+    cityLevel: "二线",
+    education: "本科",
+    income: "20-30万",
+    carOwnership: "1辆燃油车",
+    currentCar: "哈弗H6",
+    hasChildren: true,
+    surveysCompleted: ["Q-002"],
+    notes: "首次考虑纯电，担心补能问题"
+  },
+
+  // S-003: 试驾回访 - 本品牌A车型
+  {
+    id: "U-013",
+    name: "韩梅",
+    product: "本品牌A车型",
+    researchType: "试驾回访",
+    researchDate: "2026-05-27",
+    sessionId: "S-003",
+    age: 35,
+    gender: "女",
+    maritalStatus: "已婚",
+    children: "1个孩子",
+    city: "武汉",
+    cityLevel: "二线",
+    education: "本科",
+    income: "30-50万",
+    carOwnership: "1辆燃油车",
+    currentCar: "日产逍客",
+    hasChildren: true,
+    surveysCompleted: ["Q-001", "Q-003"],
+    notes: "完成试驾但未下订，家人对续航有顾虑"
+  },
+  {
+    id: "U-014",
+    name: "蒋军",
+    product: "本品牌A车型",
+    researchType: "试驾回访",
+    researchDate: "2026-05-27",
+    sessionId: "S-003",
+    age: 28,
+    gender: "男",
+    maritalStatus: "未婚",
+    children: "无子女",
+    city: "长沙",
+    cityLevel: "二线",
+    education: "本科",
+    income: "20-30万",
+    carOwnership: "无车",
+    currentCar: "",
+    hasChildren: false,
+    surveysCompleted: ["Q-003"],
+    notes: "试驾后对智驾印象深，但价格超出预算"
+  },
+  {
+    id: "U-015",
+    name: "沈丽",
+    product: "本品牌A车型",
+    researchType: "试驾回访",
+    researchDate: "2026-05-27",
+    sessionId: "S-003",
+    age: 32,
+    gender: "女",
+    maritalStatus: "已婚",
+    children: "2个孩子",
+    city: "西安",
+    cityLevel: "二线",
+    education: "大专",
+    income: "30-50万",
+    carOwnership: "1辆燃油车",
+    currentCar: "别克GL8",
+    hasChildren: true,
+    surveysCompleted: ["Q-003"],
+    notes: "试驾满意，但金融方案不够灵活"
+  },
+  {
+    id: "U-016",
+    name: "余波",
+    product: "本品牌A车型",
+    researchType: "试驾回访",
+    researchDate: "2026-05-27",
+    sessionId: "S-003",
+    age: 30,
+    gender: "男",
+    maritalStatus: "已婚",
+    children: "1个孩子",
+    city: "重庆",
+    cityLevel: "二线",
+    education: "本科",
+    income: "20-30万",
+    carOwnership: "1辆燃油车",
+    currentCar: "长安CS75",
+    hasChildren: true,
+    surveysCompleted: ["Q-001", "Q-003"],
+    notes: "试驾体验好，但担心二手车保值率"
+  },
+  {
+    id: "U-017",
+    name: "潘红",
+    product: "本品牌A车型",
+    researchType: "试驾回访",
+    researchDate: "2026-05-27",
+    sessionId: "S-003",
+    age: 27,
+    gender: "女",
+    maritalStatus: "未婚",
+    children: "无子女",
+    city: "天津",
+    cityLevel: "一线",
+    education: "本科",
+    income: "20-30万",
+    carOwnership: "无车",
+    currentCar: "",
+    hasChildren: false,
+    surveysCompleted: ["Q-003"],
+    notes: "单身女性首购，对自动泊车很感兴趣"
+  },
+  {
+    id: "U-018",
+    name: "董亮",
+    product: "本品牌A车型",
+    researchType: "试驾回访",
+    researchDate: "2026-05-27",
+    sessionId: "S-003",
+    age: 33,
+    gender: "男",
+    maritalStatus: "已婚",
+    children: "1个孩子",
+    city: "青岛",
+    cityLevel: "二线",
+    education: "硕士",
+    income: "30-50万",
+    carOwnership: "1辆燃油车",
+    currentCar: "大众途观",
+    hasChildren: true,
+    surveysCompleted: ["Q-003"],
+    notes: "试驾后排评价高，但担心售后网点少"
+  },
+
+  // S-004: 竞品车主访谈 - 竞品B车型
+  {
+    id: "U-019",
+    name: "袁志",
+    product: "竞品B车型",
+    researchType: "竞品车主访谈",
+    researchDate: "2026-05-30",
+    sessionId: "S-004",
+    age: 31,
+    gender: "男",
+    maritalStatus: "已婚",
+    children: "1个孩子",
+    city: "合肥",
+    cityLevel: "二线",
+    education: "本科",
+    income: "30-50万",
+    carOwnership: "1辆新能源车",
+    currentCar: "特斯拉Model Y",
+    hasChildren: true,
+    surveysCompleted: ["Q-002", "Q-003"],
+    notes: "竞品B车主，认可品牌但觉得座舱一般"
+  },
+  {
+    id: "U-020",
+    name: "邓娟",
+    product: "竞品B车型",
+    researchType: "竞品车主访谈",
+    researchDate: "2026-05-30",
+    sessionId: "S-004",
+    age: 27,
+    gender: "男",
+    maritalStatus: "未婚",
+    children: "无子女",
+    city: "郑州",
+    cityLevel: "二线",
+    education: "本科",
+    income: "20-30万",
+    carOwnership: "1辆新能源车",
+    currentCar: "比亚迪汉",
+    hasChildren: false,
+    surveysCompleted: ["Q-002"],
+    notes: "年轻车主，看重品牌和口碑"
+  },
+  {
+    id: "U-021",
+    name: "许峰",
+    product: "竞品B车型",
+    researchType: "竞品车主访谈",
+    researchDate: "2026-05-30",
+    sessionId: "S-004",
+    age: 36,
+    gender: "男",
+    maritalStatus: "已婚",
+    children: "2个孩子",
+    city: "福州",
+    cityLevel: "二线",
+    education: "大专",
+    income: "30-50万",
+    carOwnership: "1辆新能源车",
+    currentCar: "蔚来ES6",
+    hasChildren: true,
+    surveysCompleted: ["Q-002", "Q-003"],
+    notes: "二孩家庭，选择竞品因补能网络完善"
+  },
+  {
+    id: "U-022",
+    name: "傅艳",
+    product: "竞品B车型",
+    researchType: "竞品车主访谈",
+    researchDate: "2026-05-30",
+    sessionId: "S-004",
+    age: 29,
+    gender: "女",
+    maritalStatus: "已婚",
+    children: "1个孩子",
+    city: "厦门",
+    cityLevel: "二线",
+    education: "本科",
+    income: "30-50万",
+    carOwnership: "1辆新能源车",
+    currentCar: "小鹏G9",
+    hasChildren: true,
+    surveysCompleted: ["Q-002"],
+    notes: "对竞品智驾满意，但希望座椅更舒适"
+  },
+  {
+    id: "U-023",
+    name: "钟杰",
+    product: "竞品B车型",
+    researchType: "竞品车主访谈",
+    researchDate: "2026-05-30",
+    sessionId: "S-004",
+    age: 34,
+    gender: "男",
+    maritalStatus: "已婚",
+    children: "1个孩子",
+    city: "大连",
+    cityLevel: "二线",
+    education: "本科",
+    income: "20-30万",
+    carOwnership: "1辆新能源车",
+    currentCar: "理想L7",
+    hasChildren: true,
+    surveysCompleted: ["Q-002", "Q-003"],
+    notes: "增程式车主，考虑转纯电但担心续航"
+  },
+  {
+    id: "U-024",
+    name: "谭敏",
+    product: "竞品B车型",
+    researchType: "竞品车主访谈",
+    researchDate: "2026-05-30",
+    sessionId: "S-004",
+    age: 32,
+    gender: "女",
+    maritalStatus: "已婚",
+    children: "1个孩子",
+    city: "昆明",
+    cityLevel: "二线",
+    education: "硕士",
+    income: "30-50万",
+    carOwnership: "1辆新能源车",
+    currentCar: "问界M7",
+    hasChildren: true,
+    surveysCompleted: ["Q-002"],
+    notes: "重视售后服务，竞品服务体验好"
+  },
+
+  // S-005: 概念测试 - 本品牌B车型
+  {
+    id: "U-025",
+    name: "邹刚",
+    product: "本品牌B车型",
+    researchType: "概念测试",
+    researchDate: "2026-06-06",
+    sessionId: "S-005",
+    age: 38,
+    gender: "男",
+    maritalStatus: "已婚",
+    children: "2个孩子",
+    city: "北京",
+    cityLevel: "一线",
+    education: "硕士",
+    income: "50-100万",
+    carOwnership: "多辆车",
+    currentCar: "宝马X5+奥迪A4",
+    hasChildren: true,
+    surveysCompleted: [],
+    notes: "高净值用户，第二辆车给妻子用"
+  },
+  {
+    id: "U-026",
+    name: "石兰",
+    product: "本品牌B车型",
+    researchType: "概念测试",
+    researchDate: "2026-06-06",
+    sessionId: "S-005",
+    age: 35,
+    gender: "女",
+    maritalStatus: "已婚",
+    children: "1个孩子",
+    city: "上海",
+    cityLevel: "一线",
+    education: "本科",
+    income: "50-100万",
+    carOwnership: "1辆燃油车",
+    currentCar: "奔驰C级",
+    hasChildren: true,
+    surveysCompleted: [],
+    notes: "家庭增购，偏好中型SUV"
+  },
+  {
+    id: "U-027",
+    name: "廖伟",
+    product: "本品牌B车型",
+    researchType: "概念测试",
+    researchDate: "2026-06-06",
+    sessionId: "S-005",
+    age: 42,
+    gender: "男",
+    maritalStatus: "已婚",
+    children: "2个孩子",
+    city: "深圳",
+    cityLevel: "一线",
+    education: "硕士",
+    income: "100万以上",
+    carOwnership: "1辆燃油车",
+    currentCar: "沃尔沃XC90",
+    hasChildren: true,
+    surveysCompleted: [],
+    notes: "高端用户，关注安全和环保"
+  },
+  {
+    id: "U-028",
+    name: "崔芳",
+    product: "本品牌B车型",
+    researchType: "概念测试",
+    researchDate: "2026-06-06",
+    sessionId: "S-005",
+    age: 30,
+    gender: "女",
+    maritalStatus: "已婚",
+    children: "1个孩子",
+    city: "杭州",
+    cityLevel: "二线",
+    education: "本科",
+    income: "30-50万",
+    carOwnership: "1辆燃油车",
+    currentCar: "马自达CX-5",
+    hasChildren: true,
+    surveysCompleted: [],
+    notes: "首次看B车型，对外观设计敏感"
+  },
+  {
+    id: "U-029",
+    name: "康军",
+    product: "本品牌B车型",
+    researchType: "概念测试",
+    researchDate: "2026-06-06",
+    sessionId: "S-005",
+    age: 45,
+    gender: "男",
+    maritalStatus: "已婚",
+    children: "2个孩子",
+    city: "成都",
+    cityLevel: "二线",
+    education: "本科",
+    income: "50-100万",
+    carOwnership: "1辆燃油车",
+    currentCar: "丰田汉兰达",
+    hasChildren: true,
+    surveysCompleted: [],
+    notes: "中年换购，从合资转向豪华品牌"
+  },
+  {
+    id: "U-030",
+    name: "贺丽",
+    product: "本品牌B车型",
+    researchType: "概念测试",
+    researchDate: "2026-06-06",
+    sessionId: "S-005",
+    age: 33,
+    gender: "女",
+    maritalStatus: "已婚",
+    children: "1个孩子",
+    city: "南京",
+    cityLevel: "二线",
+    education: "硕士",
+    income: "30-50万",
+    carOwnership: "1辆新能源车",
+    currentCar: "特斯拉Model 3",
+    hasChildren: true,
+    surveysCompleted: [],
+    notes: "从轿车升级到SUV，需要更大空间"
+  },
+
+  // S-006: 销售线索回访 - 本品牌B车型
+  {
+    id: "U-031",
+    name: "龚涛",
+    product: "本品牌B车型",
+    researchType: "销售线索回访",
+    researchDate: "2026-06-01",
+    sessionId: "S-006",
+    age: 42,
+    gender: "女",
+    maritalStatus: "已婚",
+    children: "2个孩子",
+    city: "武汉",
+    cityLevel: "二线",
+    education: "本科",
+    income: "50-100万",
+    carOwnership: "1辆燃油车",
+    currentCar: "别克GL8",
+    hasChildren: true,
+    surveysCompleted: ["Q-003"],
+    notes: "留资后未到店，价格敏感度高"
+  },
+  {
+    id: "U-032",
+    name: "毛杰",
+    product: "本品牌B车型",
+    researchType: "销售线索回访",
+    researchDate: "2026-06-01",
+    sessionId: "S-006",
+    age: 29,
+    gender: "男",
+    maritalStatus: "未婚",
+    children: "无子女",
+    city: "西安",
+    cityLevel: "二线",
+    education: "本科",
+    income: "20-30万",
+    carOwnership: "无车",
+    currentCar: "",
+    hasChildren: false,
+    surveysCompleted: [],
+    notes: "年轻高潜客户，被竞品截流风险高"
+  },
+  {
+    id: "U-033",
+    name: "常红",
+    product: "本品牌B车型",
+    researchType: "销售线索回访",
+    researchDate: "2026-06-01",
+    sessionId: "S-006",
+    age: 36,
+    gender: "女",
+    maritalStatus: "已婚",
+    children: "1个孩子",
+    city: "重庆",
+    cityLevel: "二线",
+    education: "大专",
+    income: "30-50万",
+    carOwnership: "1辆燃油车",
+    currentCar: "福特锐界",
+    hasChildren: true,
+    surveysCompleted: ["Q-003"],
+    notes: "对比多家，等待促销活动"
+  },
+  {
+    id: "U-034",
+    name: "武峰",
+    product: "本品牌B车型",
+    researchType: "销售线索回访",
+    researchDate: "2026-06-01",
+    sessionId: "S-006",
+    age: 31,
+    gender: "男",
+    maritalStatus: "已婚",
+    children: "1个孩子",
+    city: "天津",
+    cityLevel: "一线",
+    education: "本科",
+    income: "30-50万",
+    carOwnership: "1辆燃油车",
+    currentCar: "大众迈腾",
+    hasChildren: true,
+    surveysCompleted: [],
+    notes: "工作繁忙无暇到店，需线上跟进"
+  },
+  {
+    id: "U-035",
+    name: "乔艳",
+    product: "本品牌B车型",
+    researchType: "销售线索回访",
+    researchDate: "2026-06-01",
+    sessionId: "S-006",
+    age: 28,
+    gender: "女",
+    maritalStatus: "未婚",
+    children: "无子女",
+    city: "青岛",
+    cityLevel: "二线",
+    education: "本科",
+    income: "20-30万",
+    carOwnership: "无车",
+    currentCar: "",
+    hasChildren: false,
+    surveysCompleted: ["Q-003"],
+    notes: "首付预算不足，关注金融方案"
+  },
+  {
+    id: "U-036",
+    name: "龙军",
+    product: "本品牌B车型",
+    researchType: "销售线索回访",
+    researchDate: "2026-06-01",
+    sessionId: "S-006",
+    age: 40,
+    gender: "男",
+    maritalStatus: "已婚",
+    children: "2个孩子",
+    city: "苏州",
+    cityLevel: "二线",
+    education: "硕士",
+    income: "50-100万",
+    carOwnership: "1辆燃油车",
+    currentCar: "奥迪A6",
+    hasChildren: true,
+    surveysCompleted: ["Q-003"],
+    notes: "高意向客户，但因出差推迟到店"
+  }
+];
+
+// ===== 调研对象详细信息功能 =====
+function getAudienceDetailsFromForm() {
+  return {
+    name: document.getElementById("audienceName")?.value || "",
+    gender: document.getElementById("audienceGender")?.value || "",
+    age: document.getElementById("audienceAge")?.value || "",
+    maritalStatus: document.getElementById("audienceMarital")?.value || "",
+    children: document.getElementById("audienceChildren")?.value || "",
+    city: document.getElementById("audienceCity")?.value || "",
+    cityLevel: document.getElementById("audienceCityLevel")?.value || "",
+    education: document.getElementById("audienceEducation")?.value || "",
+    income: document.getElementById("audienceIncome")?.value || "",
+    carOwnership: document.getElementById("audienceCarOwnership")?.value || "",
+    currentCar: document.getElementById("audienceCurrentCar")?.value || "",
+    notes: document.getElementById("audienceNotes")?.value || ""
+  };
+}
+
+function setAudienceDetailsToForm(details) {
+  const fields = {
+    audienceName: details.name,
+    audienceGender: details.gender,
+    audienceAge: details.age,
+    audienceMarital: details.maritalStatus,
+    audienceChildren: details.children,
+    audienceCity: details.city,
+    audienceCityLevel: details.cityLevel,
+    audienceEducation: details.education,
+    audienceIncome: details.income,
+    audienceCarOwnership: details.carOwnership,
+    audienceCurrentCar: details.currentCar,
+    audienceNotes: details.notes
+  };
+  
+  Object.entries(fields).forEach(([id, value]) => {
+    const el = document.getElementById(id);
+    if (el) el.value = value;
+  });
+}
+
+function clearAudienceForm() {
+  currentAudienceDetails = { ...audienceDetailsTemplate };
+  setAudienceDetailsToForm(currentAudienceDetails);
+}
+
+function formatAudienceSummary(details) {
+  // 如果传入的是数组，格式化为多用户摘要
+  if (Array.isArray(details)) {
+    if (details.length === 0) return "未填写";
+    const names = details.map(u => u.name).filter(Boolean);
+    if (names.length === 0) return "未填写";
+    return `${names.join("、")}等${details.length}位用户`;
+  }
+  
+  // 单个用户的格式化（兼容旧代码）
+  const parts = [];
+  if (details.name) parts.push(details.name);
+  if (details.gender) parts.push(details.gender);
+  if (details.age) parts.push(`${details.age}岁`);
+  if (details.maritalStatus) parts.push(details.maritalStatus);
+  if (details.children) parts.push(details.children);
+  if (details.city) parts.push(details.city);
+  if (details.cityLevel) parts.push(`${details.cityLevel}城市`);
+  if (details.education) parts.push(details.education);
+  if (details.income) parts.push(`年收入${details.income}`);
+  if (details.carOwnership) parts.push(details.carOwnership);
+  return parts.length > 0 ? parts.join("，") : "未填写";
+}
+
+// 根据用户信息生成虚拟头像颜色
+function generateAvatarColor(name) {
+  const colors = [
+    '#3b82f6', '#8b5cf6', '#ec4899', '#f43f5e', 
+    '#f97316', '#eab308', '#22c55e', '#14b8a6',
+    '#06b6d4', '#6366f1'
+  ];
+  let hash = 0;
+  for (let i = 0; i < name.length; i++) {
+    hash = name.charCodeAt(i) + ((hash << 5) - hash);
+  }
+  return colors[Math.abs(hash) % colors.length];
+}
+
+// 根据用户信息生成写实风格头像
+function generateCartoonAvatar(user, size = 72) {
+  const isMale = user.gender === '男';
+  const age = parseInt(user.age) || 30;
+  
+  // ===== 智能分析用户特征 =====
+  // 肤色（根据城市线级和收入）
+  const skinTones = isMale 
+    ? ['#F5D0A9', '#E8C4A0', '#DDB892', '#F0C8A0'] 
+    : ['#FDDCB5', '#F5D0B0', '#F0C5A5', '#F8D5BA'];
+  let skinIndex = 0;
+  if (user.cityLevel === '一线' || user.cityLevel === '二线') skinIndex = (skinIndex + 1) % skinTones.length;
+  if (user.income && (user.income.includes('50-100万') || user.income.includes('100万以上'))) skinIndex = (skinIndex + 2) % skinTones.length;
+  const skinColor = skinTones[skinIndex];
+  
+  // 发色和发型（根据年龄、性别、收入）
+  let hairColor, hairStyle;
+  if (age >= 60) {
+    hairColor = isMale ? '#C0C0C0' : '#D0D0D0';
+    hairStyle = isMale ? 'short-gray' : 'medium-gray';
+  } else if (age >= 50) {
+    hairColor = isMale ? '#5D4E42' : '#6B5D52';
+    hairStyle = isMale ? 'short-mature' : 'medium-mature';
+  } else if (age >= 40) {
+    hairColor = isMale ? '#3D2817' : '#4A3728';
+    hairStyle = isMale ? 'short-professional' : 'long-elegant';
+  } else if (age >= 30) {
+    hairColor = isMale ? '#2C1810' : '#3D2817';
+    hairStyle = isMale ? 'short-modern' : (user.maritalStatus === '已婚' ? 'long-tied' : 'long-loose');
+  } else {
+    hairColor = isMale ? '#1A1A1A' : '#2C1810';
+    hairStyle = isMale ? 'short-trendy' : 'long-young';
+  }
+  
+  // 高收入用户可能有更精致的发型
+  if (user.income && (user.income.includes('50-100万') || user.income.includes('100万以上'))) {
+    hairStyle = isMale ? 'short-styled' : 'long-styled';
+  }
+  
+  // 背景色（根据婚姻状况和性别）
+  let bgColor;
+  if (isMale) {
+    if (user.maritalStatus === '已婚') bgColor = '#4A7FB5';
+    else if (user.maritalStatus === '未婚') bgColor = '#5B9BD5';
+    else bgColor = '#6BA3DC';
+  } else {
+    if (user.maritalStatus === '已婚') bgColor = '#C96B9D';
+    else if (user.maritalStatus === '未婚') bgColor = '#E88FBF';
+    else bgColor = '#D47BA8';
+  }
+  
+  // 衣服颜色（根据收入和职业感）
+  let shirtColor;
+  if (user.income) {
+    if (user.income.includes('50-100万') || user.income.includes('100万以上')) {
+      shirtColor = isMale ? '#2C3E50' : '#8E44AD'; // 深色商务/优雅紫色
+    } else if (user.income.includes('30-50万')) {
+      shirtColor = isMale ? '#34495E' : '#C0392B'; // 深灰/酒红
+    } else {
+      shirtColor = isMale ? '#5DADE2' : '#E91E63'; // 亮蓝/粉色
+    }
+  } else {
+    shirtColor = isMale ? '#4A90D9' : '#E879A8';
+  }
+  
+  // 是否有眼镜（根据年龄和教育程度）
+  const hasGlasses = (age >= 40 && Math.random() > 0.4) || 
+                     (user.education === '硕士' && Math.random() > 0.5) ||
+                     (user.education === '博士及以上' && Math.random() > 0.3);
+  
+  // 面部特征哈希（确保每个用户独特）
+  let featureHash = 0;
+  const featureStr = (user.name || '') + (user.age || '') + (user.city || '');
+  for (let i = 0; i < featureStr.length; i++) {
+    featureHash = featureStr.charCodeAt(i) + ((featureHash << 5) - featureHash);
+  }
+  
+  const s = size;
+  const svg = `
+    <svg xmlns="http://www.w3.org/2000/svg" width="${s}" height="${s}" viewBox="0 0 ${s} ${s}">
+      <defs>
+        <radialGradient id="bg${featureHash}" cx="50%" cy="40%">
+          <stop offset="0%" stop-color="${bgColor}"/>
+          <stop offset="100%" stop-color="${adjustColor(bgColor, -30)}"/>
+        </radialGradient>
+        <linearGradient id="skin${featureHash}" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stop-color="${skinColor}"/>
+          <stop offset="100%" stop-color="${adjustColor(skinColor, -18)}"/>
+        </linearGradient>
+      </defs>
+      
+      <!-- 背景 -->
+      <rect width="${s}" height="${s}" fill="url(#bg${featureHash})"/>
+      
+      <!-- 肩膀/身体 -->
+      <path d="M${s*0.15} ${s} Q${s*0.15} ${s*0.78} ${s*0.5} ${s*0.75} Q${s*0.85} ${s*0.78} ${s*0.85} ${s}" fill="${shirtColor}"/>
+      
+      <!-- 脖子 -->
+      <rect x="${s/2-s*0.065}" y="${s*0.60}" width="${s*0.13}" height="${s*0.12}" fill="url(#skin${featureHash})"/>
+      <rect x="${s/2-s*0.065}" y="${s*0.68}" width="${s*0.13}" height="${s*0.04}" fill="${adjustColor(skinColor, -25)}" opacity="0.25"/>
+      
+      <!-- 脸部 - 椭圆形更接近真实 -->
+      <ellipse cx="${s/2}" cy="${s*0.44}" rx="${s*0.23}" ry="${s*0.27}" fill="url(#skin${featureHash})"/>
+      
+      <!-- 耳朵 -->
+      <ellipse cx="${s/2-s*0.22}" cy="${s*0.45}" rx="${s*0.038}" ry="${s*0.055}" fill="url(#skin${featureHash})"/>
+      <ellipse cx="${s/2+s*0.22}" cy="${s*0.45}" rx="${s*0.038}" ry="${s*0.055}" fill="url(#skin${featureHash})"/>
+      
+      <!-- 头发 -->
+      ${generateHairSVG(s, hairStyle, hairColor, isMale)}
+      
+      <!-- 眼睛 -->
+      ${generateEyesSVG(s, isMale, age, featureHash)}
+      
+      <!-- 眉毛 -->
+      ${generateEyebrowsSVG(s, isMale, age, hairColor, featureHash)}
+      
+      <!-- 鼻子 -->
+      ${generateNoseSVG(s, skinColor, featureHash)}
+      
+      <!-- 嘴巴 -->
+      ${generateMouthSVG(s, isMale, age, featureHash)}
+      
+      <!-- 眼镜 -->
+      ${hasGlasses ? generateGlassesSVG(s, featureHash) : ''}
+      
+      <!-- 面部细节（皱纹等，根据年龄） -->
+      ${age >= 45 ? generateAgeLinesSVG(s, age, featureHash) : ''}
+      
+      <!-- 衣领 -->
+      <path d="M${s/2-s*0.11} ${s*0.75} Q${s/2} ${s*0.82} ${s/2+s*0.11} ${s*0.75}" fill="${adjustColor(shirtColor, -20)}" opacity="0.4"/>
+    </svg>
+  `;
+  
+  const blob = new Blob([svg], { type: 'image/svg+xml' });
+  return URL.createObjectURL(blob);
+}
+
+// 生成头发SVG
+function generateHairSVG(s, style, color, isMale) {
+  const hairs = {
+    'short-gray': `<path d="M${s*0.28} ${s*0.38} Q${s*0.29} ${s*0.24} ${s*0.5} ${s*0.22} Q${s*0.71} ${s*0.24} ${s*0.72} ${s*0.38} Q${s*0.70} ${s*0.33} ${s*0.68} ${s*0.40} L${s*0.65} ${s*0.46} Q${s*0.5} ${s*0.43} ${s*0.35} ${s*0.46} L${s*0.32} ${s*0.40} Q${s*0.30} ${s*0.33} ${s*0.28} ${s*0.38}" fill="${color}"/>`,
+    'medium-gray': `<path d="M${s*0.27} ${s*0.40} Q${s*0.28} ${s*0.22} ${s*0.5} ${s*0.20} Q${s*0.72} ${s*0.22} ${s*0.73} ${s*0.40} Q${s*0.75} ${s*0.52} ${s*0.73} ${s*0.65} L${s*0.68} ${s*0.62} Q${s*0.70} ${s*0.50} ${s*0.68} ${s*0.40} Q${s*0.5} ${s*0.36} ${s*0.32} ${s*0.40} Q${s*0.30} ${s*0.50} ${s*0.32} ${s*0.62} L${s*0.27} ${s*0.65} Q${s*0.25} ${s*0.52} ${s*0.27} ${s*0.40}" fill="${color}"/>`,
+    'short-mature': `<path d="M${s*0.28} ${s*0.38} Q${s*0.29} ${s*0.23} ${s*0.5} ${s*0.21} Q${s*0.71} ${s*0.23} ${s*0.72} ${s*0.38} Q${s*0.70} ${s*0.32} ${s*0.67} ${s*0.40} L${s*0.64} ${s*0.47} Q${s*0.5} ${s*0.44} ${s*0.36} ${s*0.47} L${s*0.33} ${s*0.40} Q${s*0.30} ${s*0.32} ${s*0.28} ${s*0.38}" fill="${color}"/>`,
+    'medium-mature': `<path d="M${s*0.27} ${s*0.39} Q${s*0.28} ${s*0.21} ${s*0.5} ${s*0.19} Q${s*0.72} ${s*0.21} ${s*0.73} ${s*0.39} Q${s*0.75} ${s*0.50} ${s*0.73} ${s*0.62} L${s*0.68} ${s*0.58} Q${s*0.70} ${s*0.48} ${s*0.68} ${s*0.39} Q${s*0.5} ${s*0.35} ${s*0.32} ${s*0.39} Q${s*0.30} ${s*0.48} ${s*0.32} ${s*0.58} L${s*0.27} ${s*0.62} Q${s*0.25} ${s*0.50} ${s*0.27} ${s*0.39}" fill="${color}"/>`,
+    'short-professional': `<path d="M${s*0.28} ${s*0.37} Q${s*0.29} ${s*0.21} ${s*0.5} ${s*0.19} Q${s*0.71} ${s*0.21} ${s*0.72} ${s*0.37} Q${s*0.70} ${s*0.30} ${s*0.67} ${s*0.38} L${s*0.64} ${s*0.45} Q${s*0.5} ${s*0.42} ${s*0.36} ${s*0.45} L${s*0.33} ${s*0.38} Q${s*0.30} ${s*0.30} ${s*0.28} ${s*0.37}" fill="${color}"/>`,
+    'long-elegant': `<path d="M${s*0.27} ${s*0.38} Q${s*0.28} ${s*0.19} ${s*0.5} ${s*0.17} Q${s*0.72} ${s*0.19} ${s*0.73} ${s*0.38} Q${s*0.76} ${s*0.50} ${s*0.74} ${s*0.68} L${s*0.68} ${s*0.64} Q${s*0.70} ${s*0.48} ${s*0.68} ${s*0.38} Q${s*0.5} ${s*0.34} ${s*0.32} ${s*0.38} Q${s*0.30} ${s*0.48} ${s*0.32} ${s*0.64} L${s*0.26} ${s*0.68} Q${s*0.24} ${s*0.50} ${s*0.27} ${s*0.38}" fill="${color}"/>`,
+    'short-modern': `<path d="M${s*0.28} ${s*0.37} Q${s*0.30} ${s*0.20} ${s*0.5} ${s*0.18} Q${s*0.70} ${s*0.20} ${s*0.72} ${s*0.37} Q${s*0.69} ${s*0.29} ${s*0.66} ${s*0.37} L${s*0.63} ${s*0.44} Q${s*0.5} ${s*0.41} ${s*0.37} ${s*0.44} L${s*0.34} ${s*0.37} Q${s*0.31} ${s*0.29} ${s*0.28} ${s*0.37}" fill="${color}"/>`,
+    'short-trendy': `<path d="M${s*0.29} ${s*0.37} Q${s*0.31} ${s*0.19} ${s*0.5} ${s*0.17} Q${s*0.69} ${s*0.19} ${s*0.71} ${s*0.37} Q${s*0.68} ${s*0.28} ${s*0.65} ${s*0.36} L${s*0.62} ${s*0.43} Q${s*0.5} ${s*0.40} ${s*0.38} ${s*0.43} L${s*0.35} ${s*0.36} Q${s*0.32} ${s*0.28} ${s*0.29} ${s*0.37}" fill="${color}"/>`,
+    'short-styled': `<path d="M${s*0.28} ${s*0.36} Q${s*0.30} ${s*0.18} ${s*0.5} ${s*0.16} Q${s*0.70} ${s*0.18} ${s*0.72} ${s*0.36} Q${s*0.68} ${s*0.27} ${s*0.65} ${s*0.35} L${s*0.62} ${s*0.43} Q${s*0.5} ${s*0.40} ${s*0.38} ${s*0.43} L${s*0.35} ${s*0.35} Q${s*0.32} ${s*0.27} ${s*0.28} ${s*0.36}" fill="${color}"/>`,
+    'long-loose': `<path d="M${s*0.27} ${s*0.37} Q${s*0.28} ${s*0.18} ${s*0.5} ${s*0.16} Q${s*0.72} ${s*0.18} ${s*0.73} ${s*0.37} Q${s*0.76} ${s*0.50} ${s*0.74} ${s*0.70} L${s*0.68} ${s*0.66} Q${s*0.70} ${s*0.48} ${s*0.68} ${s*0.37} Q${s*0.5} ${s*0.33} ${s*0.32} ${s*0.37} Q${s*0.30} ${s*0.48} ${s*0.32} ${s*0.66} L${s*0.26} ${s*0.70} Q${s*0.24} ${s*0.50} ${s*0.27} ${s*0.37}" fill="${color}"/>`,
+    'long-tied': `<path d="M${s*0.27} ${s*0.37} Q${s*0.28} ${s*0.18} ${s*0.5} ${s*0.16} Q${s*0.72} ${s*0.18} ${s*0.73} ${s*0.37} Q${s*0.75} ${s*0.48} ${s*0.73} ${s*0.58} L${s*0.68} ${s*0.55} Q${s*0.70} ${s*0.45} ${s*0.68} ${s*0.37} Q${s*0.5} ${s*0.33} ${s*0.32} ${s*0.37} Q${s*0.30} ${s*0.45} ${s*0.32} ${s*0.55} L${s*0.27} ${s*0.58} Q${s*0.25} ${s*0.48} ${s*0.27} ${s*0.37}" fill="${color}"/>`,
+    'long-young': `<path d="M${s*0.27} ${s*0.37} Q${s*0.29} ${s*0.17} ${s*0.5} ${s*0.15} Q${s*0.71} ${s*0.17} ${s*0.73} ${s*0.37} Q${s*0.76} ${s*0.52} ${s*0.74} ${s*0.72} L${s*0.68} ${s*0.68} Q${s*0.70} ${s*0.50} ${s*0.68} ${s*0.37} Q${s*0.5} ${s*0.33} ${s*0.32} ${s*0.37} Q${s*0.30} ${s*0.50} ${s*0.32} ${s*0.68} L${s*0.26} ${s*0.72} Q${s*0.24} ${s*0.52} ${s*0.27} ${s*0.37}" fill="${color}"/>`,
+    'long-styled': `<path d="M${s*0.27} ${s*0.36} Q${s*0.29} ${s*0.17} ${s*0.5} ${s*0.15} Q${s*0.71} ${s*0.17} ${s*0.73} ${s*0.36} Q${s*0.76} ${s*0.50} ${s*0.74} ${s*0.68} L${s*0.68} ${s*0.64} Q${s*0.70} ${s*0.48} ${s*0.68} ${s*0.36} Q${s*0.5} ${s*0.32} ${s*0.32} ${s*0.36} Q${s*0.30} ${s*0.48} ${s*0.32} ${s*0.64} L${s*0.26} ${s*0.68} Q${s*0.24} ${s*0.50} ${s*0.27} ${s*0.36}" fill="${color}"/>`
+  };
+  return hairs[style] || hairs['short-modern'];
+}
+
+// 生成眼睛SVG
+function generateEyesSVG(s, isMale, age, hash) {
+  const eyeY = s * 0.43;
+  const leftX = s/2 - s * 0.12;
+  const rightX = s/2 + s * 0.12;
+  const eyeSize = s * 0.035;
+  
+  // 眼角下垂程度（年龄越大越明显）
+  const droop = age >= 50 ? 0.005 : (age >= 40 ? 0.003 : 0);
+  
+  return `
+    <g>
+      <path d="M${leftX-eyeSize} ${eyeY+droop*s} Q${leftX} ${eyeY-eyeSize*0.8} ${leftX+eyeSize} ${eyeY+droop*s} Q${leftX} ${eyeY+eyeSize*0.6} ${leftX-eyeSize} ${eyeY+droop*s}" fill="#FFF"/>
+      <circle cx="${leftX}" cy="${eyeY}" r="${eyeSize*0.65}" fill="#5D4E3C"/>
+      <circle cx="${leftX}" cy="${eyeY}" r="${eyeSize*0.35}" fill="#1A1A1A"/>
+      <circle cx="${leftX+eyeSize*0.2}" cy="${eyeY-eyeSize*0.2}" r="${eyeSize*0.15}" fill="#FFF"/>
+      
+      <path d="M${rightX-eyeSize} ${eyeY+droop*s} Q${rightX} ${eyeY-eyeSize*0.8} ${rightX+eyeSize} ${eyeY+droop*s} Q${rightX} ${eyeY+eyeSize*0.6} ${rightX-eyeSize} ${eyeY+droop*s}" fill="#FFF"/>
+      <circle cx="${rightX}" cy="${eyeY}" r="${eyeSize*0.65}" fill="#5D4E3C"/>
+      <circle cx="${rightX}" cy="${eyeY}" r="${eyeSize*0.35}" fill="#1A1A1A"/>
+      <circle cx="${rightX+eyeSize*0.2}" cy="${eyeY-eyeSize*0.2}" r="${eyeSize*0.15}" fill="#FFF"/>
+      
+      ${!isMale ? `
+        <path d="M${leftX-eyeSize*1.2} ${eyeY} Q${leftX} ${eyeY-eyeSize*1.1} ${leftX+eyeSize*1.2} ${eyeY}" stroke="#333" stroke-width="0.7" fill="none"/>
+        <path d="M${rightX-eyeSize*1.2} ${eyeY} Q${rightX} ${eyeY-eyeSize*1.1} ${rightX+eyeSize*1.2} ${eyeY}" stroke="#333" stroke-width="0.7" fill="none"/>
+      ` : ''}
+    </g>
+  `;
+}
+
+// 生成眉毛SVG
+function generateEyebrowsSVG(s, isMale, age, hairColor, hash) {
+  const browY = s * 0.395;
+  const spacing = s * 0.12;
+  const width = s * 0.06;
+  const thickness = isMale ? 0.015 : 0.012;
+  
+  // 眉毛形状（年龄影响）
+  const arch = age >= 50 ? 0.008 : 0.012;
+  
+  return `
+    <path d="M${s/2-spacing-width} ${browY+arch*s/2} Q${s/2-spacing} ${browY-arch*s} ${s/2-spacing+width} ${browY}" stroke="${hairColor}" stroke-width="${s*thickness}" fill="none" stroke-linecap="round"/>
+    <path d="M${s/2+spacing-width} ${browY} Q${s/2+spacing} ${browY-arch*s} ${s/2+spacing+width} ${browY+arch*s/2}" stroke="${hairColor}" stroke-width="${s*thickness}" fill="none" stroke-linecap="round"/>
+  `;
+}
+
+// 生成鼻子SVG
+function generateNoseSVG(s, skinColor, hash) {
+  return `
+    <path d="M${s/2} ${s*0.45} Q${s/2-s*0.008} ${s*0.49} ${s/2-s*0.015} ${s*0.515}" stroke="${adjustColor(skinColor, -30)}" stroke-width="1.2" fill="none" stroke-linecap="round"/>
+    <ellipse cx="${s/2-s*0.012}" cy="${s*0.52}" rx="${s*0.018}" ry="${s*0.012}" fill="${adjustColor(skinColor, -15)}" opacity="0.4"/>
+  `;
+}
+
+// 生成嘴巴SVG
+function generateMouthSVG(s, isMale, age, hash) {
+  const mouthY = s * 0.57;
+  const width = s * 0.07;
+  const color = isMale ? '#B8645A' : '#C97B8E';
+  
+  // 微笑程度（年轻人更明显）
+  const smile = age >= 50 ? 0.008 : (age >= 35 ? 0.012 : 0.016);
+  
+  return `
+    <path d="M${s/2-width} ${mouthY} Q${s/2} ${mouthY-smile*s} ${s/2+width} ${mouthY}" stroke="${color}" stroke-width="1.3" fill="none" stroke-linecap="round"/>
+    <path d="M${s/2-width*0.7} ${mouthY+s*0.008} Q${s/2} ${mouthY+s*0.015} ${s/2+width*0.7} ${mouthY+s*0.008}" stroke="${color}" stroke-width="0.7" fill="none" stroke-linecap="round" opacity="0.5"/>
+  `;
+}
+
+// 生成眼镜SVG
+function generateGlassesSVG(s, hash) {
+  const lensY = s * 0.43;
+  const spacing = s * 0.12;
+  const radius = s * 0.055;
+  
+  return `
+    <circle cx="${s/2-spacing}" cy="${lensY}" r="${radius}" stroke="#444" stroke-width="1.2" fill="rgba(200,220,255,0.15)"/>
+    <circle cx="${s/2+spacing}" cy="${lensY}" r="${radius}" stroke="#444" stroke-width="1.2" fill="rgba(200,220,255,0.15)"/>
+    <line x1="${s/2-spacing+radius}" y1="${lensY}" x2="${s/2+spacing-radius}" y2="${lensY}" stroke="#444" stroke-width="1.2"/>
+    <line x1="${s/2-spacing-radius}" y1="${lensY}" x2="${s/2-spacing-radius-s*0.04}" y2="${lensY-s*0.02}" stroke="#444" stroke-width="1"/>
+    <line x1="${s/2+spacing+radius}" y1="${lensY}" x2="${s/2+spacing+radius+s*0.04}" y2="${lensY-s*0.02}" stroke="#444" stroke-width="1"/>
+  `;
+}
+
+// 生成年龄线条SVG
+function generateAgeLinesSVG(s, age, hash) {
+  const intensity = Math.min(1, (age - 45) / 30);
+  return `
+    <!-- 额头纹 -->
+    <path d="M${s*0.42} ${s*0.35} Q${s*0.5} ${s*0.345} ${s*0.58} ${s*0.35}" stroke="rgba(0,0,0,0.15)" stroke-width="0.6" fill="none" opacity="${intensity}"/>
+    <path d="M${s*0.43} ${s*0.37} Q${s*0.5} ${s*0.365} ${s*0.57} ${s*0.37}" stroke="rgba(0,0,0,0.12)" stroke-width="0.5" fill="none" opacity="${intensity}"/>
+    <!-- 法令纹 -->
+    <path d="M${s*0.44} ${s*0.52} Q${s*0.43} ${s*0.55} ${s*0.44} ${s*0.57}" stroke="rgba(0,0,0,0.1)" stroke-width="0.5" fill="none" opacity="${intensity}"/>
+    <path d="M${s*0.56} ${s*0.52} Q${s*0.57} ${s*0.55} ${s*0.56} ${s*0.57}" stroke="rgba(0,0,0,0.1)" stroke-width="0.5" fill="none" opacity="${intensity}"/>
+  `;
+}
+
+// 颜色调整辅助函数
+function adjustColor(hex, amount) {
+  const num = parseInt(hex.replace('#', ''), 16);
+  const r = Math.max(0, Math.min(255, (num >> 16) + amount));
+  const g = Math.max(0, Math.min(255, ((num >> 8) & 0x00FF) + amount));
+  const b = Math.max(0, Math.min(255, (num & 0x0000FF) + amount));
+  return '#' + (1 << 24 | r << 16 | g << 8 | b).toString(16).slice(1);
+}
+
+// 根据年龄获取发色
+function getHairColor(age) {
+  const ageNum = parseInt(age) || 30;
+  if (ageNum >= 60) {
+    return '#C0C0C0'; // 灰色
+  }
+  const hairColors = ['#2C1810', '#4A3728', '#1A1A1A', '#3D2817', '#5C4033'];
+  return hairColors[Math.floor(Math.random() * hairColors.length)];
+}
+
+// 根据用户信息获取衣服颜色
+function getShirtColor(user) {
+  const colors = ['#3B82F6', '#10B981', '#F59E0B', '#EF4444', '#8B5CF6', '#EC4899', '#14B8A6'];
+  let hash = 0;
+  const str = (user.name || '') + (user.gender || '');
+  for (let i = 0; i < str.length; i++) {
+    hash = str.charCodeAt(i) + ((hash << 5) - hash);
+  }
+  return colors[Math.abs(hash) % colors.length];
+}
+
+//  lighten color helper
+function lightenColor(hex, percent) {
+  const num = parseInt(hex.replace('#', ''), 16);
+  const r = Math.min(255, (num >> 16) + percent);
+  const g = Math.min(255, ((num >> 8) & 0x00FF) + percent);
+  const b = Math.min(255, (num & 0x0000FF) + percent);
+  return `#${(1 << 24 | r << 16 | g << 8 | b).toString(16).slice(1)}`;
+}
+
+// 获取用户姓名的首字用于头像显示
+function getInitials(name) {
+  if (!name) return '?';
+  return name.charAt(0);
+}
+
+// 渲染准备页面的用户头像卡片
+function renderAudienceAvatars() {
+  const container = document.getElementById('audienceAvatars');
+  if (!container) return;
+  
+  if (currentAudienceList.length === 0) {
+    container.innerHTML = '<div class="empty-state">暂无调研用户，点击"管理用户"添加</div>';
+    return;
+  }
+  
+  const avatarsHtml = currentAudienceList.map((user, index) => {
+    const avatarUrl = generateCartoonAvatar(user, 72);
+    const summary = formatUserBriefSummary(user);
+    const userTag = generateUserTag(user, index);
+    
+    return `
+      <div class="audience-avatar-card" data-index="${index}">
+        <img class="avatar-circle" src="${avatarUrl}" alt="${user.name || '用户'}" />
+        <div class="avatar-label">${userTag}</div>
+        <div class="avatar-tooltip">
+          <div class="avatar-tooltip-title">${user.name || '未命名用户'}</div>
+          <div class="avatar-tooltip-content">
+            ${user.gender ? `<div><strong>性别：</strong>${user.gender}</div>` : ''}
+            ${user.age ? `<div><strong>年龄：</strong>${user.age}岁</div>` : ''}
+            ${user.maritalStatus ? `<div><strong>婚姻：</strong>${user.maritalStatus}</div>` : ''}
+            ${user.children ? `<div><strong>生育：</strong>${user.children}</div>` : ''}
+            ${user.city ? `<div><strong>城市：</strong>${user.city}</div>` : ''}
+            ${user.cityLevel ? `<div><strong>线级：</strong>${user.cityLevel}</div>` : ''}
+            ${user.education ? `<div><strong>学历：</strong>${user.education}</div>` : ''}
+            ${user.income ? `<div><strong>收入：</strong>${user.income}</div>` : ''}
+            ${user.carOwnership ? `<div><strong>拥车：</strong>${user.carOwnership}</div>` : ''}
+            ${user.currentCar ? `<div><strong>车辆：</strong>${user.currentCar}</div>` : ''}
+            ${user.notes ? `<div><strong>备注：</strong>${user.notes}</div>` : ''}
+          </div>
+        </div>
+      </div>
+    `;
+  }).join('');
+  
+  container.innerHTML = avatarsHtml;
+}
+
+// 格式化用户简要信息（用于tooltip）
+function formatUserBriefSummary(user) {
+  const parts = [];
+  if (user.gender) parts.push(user.gender);
+  if (user.age) parts.push(`${user.age}岁`);
+  if (user.city) parts.push(user.city);
+  return parts.join('，') || '暂无详细信息';
+}
+
+// 生成用户概括词标签
+function generateUserTag(user, index) {
+  // 智能分析用户特征，生成定制化标签
+  const features = [];
+  
+  // 1. 基础身份特征
+  const age = parseInt(user.age) || 0;
+  const isMale = user.gender === '男';
+  const isFemale = user.gender === '女';
+  
+  // 年龄阶段标签
+  let ageLabel = '';
+  if (age > 0) {
+    if (age < 25) ageLabel = 'Z世代';
+    else if (age < 30) ageLabel = '95后';
+    else if (age < 35) ageLabel = '90后';
+    else if (age < 40) ageLabel = '85后';
+    else if (age < 45) ageLabel = '80后';
+    else if (age < 50) ageLabel = '75后';
+    else if (age < 60) ageLabel = '70后';
+    else ageLabel = '银发族';
+  }
+  
+  // 2. 家庭状态标签
+  let familyLabel = '';
+  if (user.maritalStatus === '已婚' && user.children && user.children !== '无子女') {
+    if (isMale) {
+      familyLabel = '宝爸';
+    } else if (isFemale) {
+      familyLabel = '宝妈';
+    } else {
+      familyLabel = '家长';
+    }
+    // 根据孩子数量细化
+    if (user.children === '2个孩子') familyLabel = '二孩家长';
+    else if (user.children === '3个及以上') familyLabel = '多孩家长';
+  } else if (user.maritalStatus === '已婚' && (!user.children || user.children === '无子女')) {
+    familyLabel = '丁克家庭';
+  } else if (user.maritalStatus === '未婚') {
+    if (age < 30) {
+      familyLabel = isFemale ? '单身小姐姐' : '单身小哥哥';
+    } else {
+      familyLabel = isFemale ? '独立女性' : '钻石王老五';
+    }
+  } else if (user.maritalStatus === '离异') {
+    familyLabel = isFemale ? '离异女士' : '离异先生';
+  }
+  
+  // 3. 职业/收入水平标签
+  let incomeLabel = '';
+  if (user.income) {
+    if (user.income.includes('100万以上')) incomeLabel = '高净值人群';
+    else if (user.income.includes('50-100万')) incomeLabel = '富裕阶层';
+    else if (user.income.includes('30-50万')) incomeLabel = '中产精英';
+    else if (user.income.includes('20-30万')) incomeLabel = '小康家庭';
+    else if (user.income.includes('10-20万')) incomeLabel = '工薪阶层';
+    else if (user.income.includes('10万以下')) incomeLabel = '经济实惠型';
+  }
+  
+  // 4. 教育背景标签
+  let educationLabel = '';
+  if (user.education) {
+    if (user.education === '博士及以上') educationLabel = '博士';
+    else if (user.education === '硕士') educationLabel = '硕士';
+    else if (user.education === '本科') educationLabel = '本科';
+    else if (user.education === '大专') educationLabel = '大专';
+  }
+  
+  // 5. 城市层级标签
+  let cityLabel = '';
+  if (user.cityLevel) {
+    if (user.cityLevel === '一线') cityLabel = '一线城市';
+    else if (user.cityLevel === '二线') cityLabel = '二线城市';
+    else if (user.cityLevel === '三线') cityLabel = '三线城市';
+    else cityLabel = '下沉市场';
+  }
+  
+  // 6. 拥车状态标签
+  let carLabel = '';
+  if (user.carOwnership) {
+    if (user.carOwnership === '无车') carLabel = '首购用户';
+    else if (user.carOwnership === '1辆新能源车') carLabel = '新能源车主';
+    else if (user.carOwnership === '1辆燃油车') carLabel = '燃油车主';
+    else if (user.carOwnership === '多辆车') carLabel = '多车家庭';
+  }
+  
+  // 7. 组合智能标签（选择最有代表性的2-3个特征）
+  const tagParts = [];
+  
+  // 优先添加家庭身份（如果有的话）
+  if (familyLabel) tagParts.push(familyLabel);
+  
+  // 添加年龄代际
+  if (ageLabel) tagParts.push(ageLabel);
+  
+  // 如果有高收入或高学历，添加
+  if (incomeLabel && (incomeLabel.includes('高净值') || incomeLabel.includes('富裕'))) {
+    tagParts.push(incomeLabel);
+  }
+  if (educationLabel && (educationLabel === '博士' || educationLabel === '硕士')) {
+    tagParts.push(educationLabel);
+  }
+  
+  // 如果标签太少，补充城市和拥车信息
+  if (tagParts.length < 2 && cityLabel) tagParts.push(cityLabel);
+  if (tagParts.length < 2 && carLabel) tagParts.push(carLabel);
+  if (tagParts.length < 2 && incomeLabel) tagParts.push(incomeLabel);
+  
+  // 如果还是没有足够标签，使用默认
+  if (tagParts.length === 0) {
+    if (isFemale) tagParts.push('女性用户');
+    else if (isMale) tagParts.push('男性用户');
+    else tagParts.push('潜在用户');
+  }
+  
+  // 组合成最终标签
+  return `${index + 1}号用户 ${tagParts.slice(0, 3).join('·')}`;
+}
+
+// 切换调研对象表单展开/收起
+function toggleAudienceForm() {
+  const container = document.getElementById("audienceFormContainer");
+  if (container) {
+    const isHidden = container.style.display === "none";
+    container.style.display = isHidden ? "grid" : "none";
+  }
+}
+
+// ===== 调研用户管理模态框功能 =====
+var editingUserIndex = -1; // -1 表示新增，>=0 表示编辑现有用户
+
+// 打开模态框
+function openAudienceModal() {
+  console.log('openAudienceModal called');
+  const modal = document.getElementById('audienceModal');
+  console.log('modal element:', modal);
+  if (modal) {
+    modal.classList.remove('hidden');
+    renderUserList();
+    hideUserEditForm();
+  }
+}
+
+// 关闭模态框
+function closeAudienceModal() {
+  const modal = document.getElementById('audienceModal');
+  if (modal) {
+    modal.classList.add('hidden');
+  }
+}
+
+// 渲染用户列表
+function renderUserList() {
+  const container = document.getElementById('userListContainer');
+  if (!container) return;
+  
+  if (currentAudienceList.length === 0) {
+    container.innerHTML = '<div class="empty-state">暂无用户，点击下方按钮添加</div>';
+    return;
+  }
+  
+  const listHtml = currentAudienceList.map((user, index) => {
+    const avatarUrl = generateCartoonAvatar(user, 48);
+    const summary = formatUserBriefSummary(user);
+    
+    return `
+      <div class="user-list-item">
+        <img class="user-list-avatar" src="${avatarUrl}" alt="${user.name || '用户'}" />
+        <div class="user-list-info">
+          <div class="user-list-name">${user.name || '未命名用户'}</div>
+          <div class="user-list-summary">${summary}</div>
+        </div>
+        <div class="user-list-actions">
+          <button onclick="editUser(${index})">编辑</button>
+          <button class="delete-btn" onclick="deleteUser(${index})">删除</button>
+        </div>
+      </div>
+    `;
+  }).join('');
+  
+  container.innerHTML = listHtml;
+}
+
+// 显示用户编辑表单
+function showUserEditForm(isEdit = false) {
+  const form = document.getElementById('userEditForm');
+  const title = document.getElementById('userEditTitle');
+  if (form) form.classList.remove('hidden');
+  if (title) title.textContent = isEdit ? '编辑用户' : '添加用户';
+}
+
+// 隐藏用户编辑表单
+function hideUserEditForm() {
+  const form = document.getElementById('userEditForm');
+  if (form) form.classList.add('hidden');
+  clearUserEditForm();
+  editingUserIndex = -1;
+}
+
+// 清空编辑表单
+function clearUserEditForm() {
+  const fields = [
+    'editAudienceName', 'editAudienceGender', 'editAudienceAge',
+    'editAudienceMarital', 'editAudienceChildren', 'editAudienceCity',
+    'editAudienceCityLevel', 'editAudienceEducation', 'editAudienceIncome',
+    'editAudienceCarOwnership', 'editAudienceCurrentCar', 'editAudienceNotes'
+  ];
+  fields.forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.value = '';
+  });
+}
+
+// 从表单获取用户数据
+function getUserFromEditForm() {
+  return {
+    name: document.getElementById('editAudienceName')?.value || '',
+    gender: document.getElementById('editAudienceGender')?.value || '',
+    age: document.getElementById('editAudienceAge')?.value || '',
+    maritalStatus: document.getElementById('editAudienceMarital')?.value || '',
+    children: document.getElementById('editAudienceChildren')?.value || '',
+    city: document.getElementById('editAudienceCity')?.value || '',
+    cityLevel: document.getElementById('editAudienceCityLevel')?.value || '',
+    education: document.getElementById('editAudienceEducation')?.value || '',
+    income: document.getElementById('editAudienceIncome')?.value || '',
+    carOwnership: document.getElementById('editAudienceCarOwnership')?.value || '',
+    currentCar: document.getElementById('editAudienceCurrentCar')?.value || '',
+    notes: document.getElementById('editAudienceNotes')?.value || ''
+  };
+}
+
+// 设置表单数据
+function setUserToEditForm(user) {
+  const fields = {
+    editAudienceName: user.name,
+    editAudienceGender: user.gender,
+    editAudienceAge: user.age,
+    editAudienceMarital: user.maritalStatus,
+    editAudienceChildren: user.children,
+    editAudienceCity: user.city,
+    editAudienceCityLevel: user.cityLevel,
+    editAudienceEducation: user.education,
+    editAudienceIncome: user.income,
+    editAudienceCarOwnership: user.carOwnership,
+    editAudienceCurrentCar: user.currentCar,
+    editAudienceNotes: user.notes
+  };
+  
+  Object.entries(fields).forEach(([id, value]) => {
+    const el = document.getElementById(id);
+    if (el) el.value = value;
+  });
+}
+
+// 编辑用户
+function editUser(index) {
+  editingUserIndex = index;
+  const user = currentAudienceList[index];
+  setUserToEditForm(user);
+  showUserEditForm(true);
+}
+
+// 删除用户
+function deleteUser(index) {
+  if (confirm('确定要删除这个用户吗？')) {
+    currentAudienceList.splice(index, 1);
+    renderUserList();
+    renderAudienceAvatars();
+  }
+}
+
+// 保存用户
+function saveUser() {
+  const userData = getUserFromEditForm();
+  
+  if (!userData.name) {
+    alert('请输入用户姓名');
+    return;
+  }
+  
+  if (editingUserIndex >= 0) {
+    // 编辑现有用户
+    currentAudienceList[editingUserIndex] = userData;
+  } else {
+    // 新增用户
+    currentAudienceList.push(userData);
+  }
+  
+  renderUserList();
+  renderAudienceAvatars();
+  hideUserEditForm();
+}
+
+// 添加新用户
+function addNewUser() {
+  editingUserIndex = -1;
+  clearUserEditForm();
+  showUserEditForm(false);
+}
+
+// ===== 用户样本库功能函数 =====
+function renderUserSamples() {
+  const productFilter = document.getElementById("userProductFilter")?.value || "";
+  const typeFilter = document.getElementById("userTypeFilter")?.value || "";
+  const startDate = document.getElementById("userStartDate")?.value || "";
+  const endDate = document.getElementById("userEndDate")?.value || "";
+  const ageRange = document.getElementById("userAgeRange")?.value || "";
+  const genderFilter = document.getElementById("userGenderFilter")?.value || "";
+  const maritalFilter = document.getElementById("userMaritalFilter")?.value || "";
+  const cityLevelFilter = document.getElementById("userCityLevelFilter")?.value || "";
+  
+  const filtered = userSamples.filter(user => {
+    const productMatch = !productFilter || user.product === productFilter;
+    const typeMatch = !typeFilter || user.researchType === typeFilter;
+    
+    let dateMatch = true;
+    if (startDate) dateMatch = dateMatch && user.researchDate >= startDate;
+    if (endDate) dateMatch = dateMatch && user.researchDate <= endDate;
+    
+    let ageMatch = true;
+    if (ageRange) {
+      const [min, max] = ageRange.split("-").map(Number);
+      ageMatch = user.age >= min && user.age <= max;
+    }
+    
+    const genderMatch = !genderFilter || user.gender === genderFilter;
+    const maritalMatch = !maritalFilter || user.maritalStatus === maritalFilter;
+    const cityMatch = !cityLevelFilter || user.cityLevel === cityLevelFilter;
+    
+    return productMatch && typeMatch && dateMatch && ageMatch && genderMatch && maritalMatch && cityMatch;
+  });
+  
+  const container = document.getElementById("userSampleList");
+  if (!container) return;
+  
+  container.innerHTML = filtered.map(user => `
+    <div class="user-sample-item" data-user-id="${user.id}">
+      <span class="user-id">${user.id}</span>
+      <span class="user-info-preview">
+        ${user.age}岁 · ${user.gender} · ${user.cityLevel}线
+      </span>
+      <div class="user-hover-detail">
+        <h4>${user.id} 用户档案</h4>
+        <dl>
+          <dt>年龄</dt><dd>${user.age}岁</dd>
+          <dt>性别</dt><dd>${user.gender}</dd>
+          <dt>婚姻状况</dt><dd>${user.maritalStatus}</dd>
+          <dt>城市线级</dt><dd>${user.cityLevel}线</dd>
+          <dt>是否有子女</dt><dd>${user.hasChildren ? '是' : '否'}</dd>
+          <dt>参与产品</dt><dd>${user.product}</dd>
+          <dt>调研类型</dt><dd>${user.researchType}</dd>
+          <dt>调研日期</dt><dd>${user.researchDate}</dd>
+          <dt>场次编号</dt><dd>${user.sessionId}</dd>
+          <dt>完成问卷</dt><dd>${user.surveysCompleted.length > 0 ? user.surveysCompleted.join(', ') : '无'}</dd>
+        </dl>
+      </div>
+    </div>
+  `).join("") || `<div class="empty-state"><p>暂无符合条件的用户样本</p></div>`;
+  
+  // 更新统计
+  document.getElementById("userSampleCount").textContent = filtered.length;
+}
+
+// ===== 用户样本库数据结束 =====
+
+// ===== 用户样本库事件监听器 =====
+document.getElementById("userProductFilter")?.addEventListener("change", renderUserSamples);
+document.getElementById("userTypeFilter")?.addEventListener("change", renderUserSamples);
+document.getElementById("userStartDate")?.addEventListener("change", renderUserSamples);
+document.getElementById("userEndDate")?.addEventListener("change", renderUserSamples);
+document.getElementById("userAgeRange")?.addEventListener("change", renderUserSamples);
+document.getElementById("userGenderFilter")?.addEventListener("change", renderUserSamples);
+document.getElementById("userMaritalFilter")?.addEventListener("change", renderUserSamples);
+document.getElementById("userCityLevelFilter")?.addEventListener("change", renderUserSamples);
+document.getElementById("clearUserFiltersBtn")?.addEventListener("click", () => {
+  document.getElementById("userProductFilter").value = "";
+  document.getElementById("userTypeFilter").value = "";
+  document.getElementById("userStartDate").value = "";
+  document.getElementById("userEndDate").value = "";
+  document.getElementById("userAgeRange").value = "";
+  document.getElementById("userGenderFilter").value = "";
+  document.getElementById("userMaritalFilter").value = "";
+  document.getElementById("userCityLevelFilter").value = "";
+  renderUserSamples();
+});
+
+// ===== 调研对象表单事件监听器 =====
+// 管理用户按钮
+document.getElementById("manageAudienceBtn")?.addEventListener("click", openAudienceModal);
+document.getElementById("closeAudienceModal")?.addEventListener("click", closeAudienceModal);
+document.getElementById("addUserBtn")?.addEventListener("click", addNewUser);
+document.getElementById("saveUserBtn")?.addEventListener("click", saveUser);
+document.getElementById("cancelEditUserBtn")?.addEventListener("click", hideUserEditForm);
+
+// 点击模态框背景关闭
+document.getElementById("audienceModal")?.addEventListener("click", (e) => {
+  if (e.target.id === 'audienceModal') {
+    closeAudienceModal();
+  }
+});
+
+// ===== 定量调研模块事件监听器 =====
+document.getElementById("createSurveyBtn")?.addEventListener("click", () => openSurveyEditor());
+document.getElementById("addQuestionBtn")?.addEventListener("click", addNewQuestion);
+document.getElementById("saveSurveyBtn")?.addEventListener("click", () => {
+  alert("问卷已保存！（演示功能）");
+});
+document.getElementById("previewSurveyBtn")?.addEventListener("click", () => {
+  alert("预览功能（演示）");
+});
+document.getElementById("exportDataBtn")?.addEventListener("click", () => {
+  alert("数据导出功能（演示）");
+});
+document.getElementById("surveyStatusFilter")?.addEventListener("change", renderSurveys);
+document.getElementById("surveyTypeFilter")?.addEventListener("change", renderSurveys);
+
+// 将函数暴露到全局以便onclick调用
+window.removeQuestion = removeQuestion;
+
+// ===== 自动化测试代码 =====
+window.runMultiTabTests = async function() {
+  const results = [];
+  const sleep = ms => new Promise(r => setTimeout(r, ms));
+  
+  function addResult(name, passed, msg) {
+    results.push({ name, passed, msg });
+    console.log(`${passed ? '✓' : '✗'} ${name}: ${msg}`);
+  }
+  
+  // 重置
+  document.getElementById('resetBtn').click();
+  await sleep(100);
+  
+  try {
+    // 测试1：初始状态
+    const subNav = document.getElementById('subNavContainer');
+    addResult('测试1: 初始隐藏二级标签', subNav.style.display === 'none', 
+      `display=${subNav.style.display}`);
+    
+    // 测试2：打开第一场
+    document.querySelector('[data-session-id="S-001"]')?.click();
+    await sleep(150);
+    let tabs = document.querySelectorAll('.sub-nav-item');
+    addResult('测试2: 打开S-001显示1个标签', tabs.length === 1 && subNav.style.display !== 'none',
+      `标签数=${tabs.length}, 可见=${subNav.style.display !== 'none'}`);
+    
+    // 测试3：打开第二场
+    document.querySelector('[data-session-id="S-002"]')?.click();
+    await sleep(150);
+    tabs = document.querySelectorAll('.sub-nav-item');
+    addResult('测试3: 打开S-002显示2个标签', tabs.length === 2,
+      `标签数=${tabs.length}`);
+    
+    // 测试4：打开第三场
+    document.querySelector('[data-session-id="S-003"]')?.click();
+    await sleep(150);
+    tabs = document.querySelectorAll('.sub-nav-item');
+    addResult('测试4: 打开S-003显示3个标签', tabs.length === 3,
+      `标签数=${tabs.length}`);
+    
+    // 测试5：切换导航项后标签保持
+    document.querySelector('[data-view="persona"]')?.click();
+    await sleep(150);
+    const stillVisible = subNav.style.display !== 'none';
+    tabs = document.querySelectorAll('.sub-nav-item');
+    addResult('测试5: 切换导航项标签保持', stillVisible && tabs.length === 3,
+      `可见=${stillVisible}, 标签数=${tabs.length}`);
+    
+    // 回到用户调研
+    document.querySelector('[data-view="overview"]')?.click();
+    await sleep(150);
+    
+    // 测试6：关闭中间标签
+    let closeBtns = document.querySelectorAll('.sub-nav-close');
+    if (closeBtns.length >= 2) {
+      closeBtns[1].click(); // 关闭S-002
+      await sleep(150);
+      tabs = document.querySelectorAll('.sub-nav-item');
+      const remainingIds = Array.from(tabs).map(t => t.dataset.session);
+      addResult('测试6: 关闭S-002后剩2个标签', tabs.length === 2 && !remainingIds.includes('S-002'),
+        `标签数=${tabs.length}, 剩余=${remainingIds.join(',')}`);
+    } else {
+      addResult('测试6: 关闭中间标签', false, `关闭按钮数=${closeBtns.length}`);
+    }
+    
+    // 测试7：右上角关闭按钮
+    const closeBtn = document.getElementById('closeSessionBtn');
+    if (closeBtn && !closeBtn.classList.contains('hidden')) {
+      closeBtn.click();
+      await sleep(150);
+      tabs = document.querySelectorAll('.sub-nav-item');
+      addResult('测试7: 右上角关闭按钮', tabs.length === 1,
+        `关闭后标签数=${tabs.length}`);
+    } else {
+      addResult('测试7: 右上角关闭按钮', false, '按钮不存在或隐藏');
+    }
+    
+    // 测试8：关闭最后标签返回主页
+    const lastClose = document.querySelector('.sub-nav-close');
+    if (lastClose) {
+      lastClose.click();
+      await sleep(150);
+      const hidden = subNav.style.display === 'none';
+      const overviewActive = document.querySelector('[data-view="overview"]').classList.contains('active');
+      addResult('测试8: 关闭最后标签返回主页', hidden && overviewActive,
+        `隐藏=${hidden}, 概览激活=${overviewActive}`);
+    }
+    
+    // 测试9：重置清除所有
+    document.querySelector('[data-session-id="S-001"]')?.click();
+    await sleep(100);
+    document.querySelector('[data-session-id="S-002"]')?.click();
+    await sleep(100);
+    document.getElementById('resetBtn').click();
+    await sleep(150);
+    const afterReset = subNav.style.display === 'none';
+    tabs = document.querySelectorAll('.sub-nav-item');
+    addResult('测试9: 重置清除所有标签', afterReset && tabs.length === 0,
+      `隐藏=${afterReset}, 标签数=${tabs.length}`);
+    
+    // 测试10：标签切换
+    document.querySelector('[data-session-id="S-001"]')?.click();
+    await sleep(100);
+    document.querySelector('[data-session-id="S-002"]')?.click();
+    await sleep(100);
+    document.querySelector('[data-session-id="S-003"]')?.click();
+    await sleep(150);
+    tabs = document.querySelectorAll('.sub-nav-item');
+    if (tabs.length >= 3) {
+      tabs[0].click();
+      await sleep(150);
+      const firstActive = tabs[0].classList.contains('active');
+      const titleHasS001 = document.getElementById('researchTitle').textContent.includes('S-001');
+      addResult('测试10: 标签切换功能', firstActive && titleHasS001,
+        `第一个激活=${firstActive}, 标题含S-001=${titleHasS001}`);
+    }
+    
+  } catch (e) {
+    addResult('测试异常', false, e.message);
+  }
+  
+  // 输出总结
+  const pass = results.filter(r => r.passed).length;
+  const fail = results.filter(r => !r.passed).length;
+  console.log(`\n===== 测试总结 =====`);
+  console.log(`共 ${results.length} 项测试，${pass} 通过，${fail} 失败`);
+  console.log('===================\n');
+  
+  return { total: results.length, pass, fail, results };
+};
+
+// 页面加载1秒后自动运行测试
+setTimeout(() => {
+  console.log('开始多标签功能自动化测试...\n');
+  window.runMultiTabTests();
+}, 1000);
+
+// ===== 初始化定量调研模块 =====
+renderSurveys();
+renderUserSamples();
+renderSessions();

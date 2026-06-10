@@ -1,0 +1,358 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>虚拟消费者平台 | Virtual Consumer OS</title>
+  <link rel="stylesheet" href="./styles.css" />
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="../supabase-config.js"></script>
+  <script src="../auth.js"></script>
+</head>
+<body>
+  <!-- 登录守卫 -->
+  <script>
+    (async function guard() {
+      if (!window.SUPABASE_READY) { console.log('[守卫] 开发模式，跳过验证'); return; }
+      initSupabase();
+      var result = await AuthGuard.protect(false);
+      if (!result.authenticated && !result.devMode) return;
+      // 从云端同步用户数据
+      if (window.SharedDataStore) {
+        await SharedDataStore.loadFromCloud();
+      }
+    })();
+  </script>
+
+  <div class="app-shell">
+    <!-- ========== 侧边栏 ========== -->
+    <aside class="sidebar">
+      <div class="brand">
+        <div class="brand-mark">VC</div>
+        <div>
+          <strong>虚拟消费者平台</strong>
+          <span>Virtual Consumer OS</span>
+        </div>
+      </div>
+
+      <nav class="nav" aria-label="主要功能">
+        <button class="nav-item active" data-view="personaDashboard">
+          <span class="nav-icon">◈</span>
+          虚拟人格构建
+        </button>
+        <button class="nav-item" data-view="qaExchange">
+          <span class="nav-icon">◈</span>
+          智能问答交互
+        </button>
+      </nav>
+
+      <div class="sidebar-footer">
+        <span>当前项目</span>
+        <strong>纯电SUV虚拟消费者建模</strong>
+      </div>
+    </aside>
+
+    <!-- ========== 主内容区 ========== -->
+    <main class="main">
+      <header class="topbar">
+        <div>
+          <p class="eyebrow">V2.0</p>
+          <h1>虚拟消费者工作台</h1>
+        </div>
+        <div class="top-actions">
+          <span class="pill pending" id="autoSyncStatus" style="font-size:11px;cursor:pointer;" title="点击手动从用户洞察平台同步数据">⏳ 等待用户洞察平台数据...</span>
+          <button class="icon-btn" id="resetBtn" title="重置演示数据">↺</button>
+          <button class="primary-btn" id="exportReportBtn">导出平台报告</button>
+        </div>
+      </header>
+
+      <!-- ============================================================ -->
+      <!-- 页面1：虚拟人格构建（汇总仪表盘 + 训练校准） -->
+      <!-- ============================================================ -->
+      <div class="work-panel view active" id="personaDashboard">
+        <div class="panel-header">
+          <div>
+            <p class="eyebrow">Dashboard — Persona Construction & Training</p>
+            <h2>虚拟人格构建 · 汇总仪表盘</h2>
+          </div>
+          <div class="top-actions">
+            <button class="ghost-btn" id="importDataBtn">📥 导入新访谈数据</button>
+            <button class="primary-btn" id="calibrateAllBtn">🔄 批量校准</button>
+          </div>
+        </div>
+
+        <!-- 全局指标行 -->
+        <section class="metrics-row" aria-label="平台概览">
+          <article class="metric">
+            <span>虚拟消费者总数</span>
+            <strong id="totalVCMetric">12</strong>
+            <div class="metric-detail">数字分身 5 · 完全虚拟 7</div>
+          </article>
+          <article class="metric">
+            <span>数字分身（有现实数据）</span>
+            <strong id="digitalTwinMetric">5</strong>
+            <div class="metric-detail">平均准确度 91.2%</div>
+          </article>
+          <article class="metric">
+            <span>完全虚拟消费者</span>
+            <strong id="pureVirtualMetric">7</strong>
+            <div class="metric-detail">基于规则+统计生成</div>
+          </article>
+          <article class="metric">
+            <span>整体模型准确率</span>
+            <strong id="overallAccuracyMetric">89.8%</strong>
+            <div class="metric-detail">较上轮校准 +1.2%</div>
+          </article>
+        </section>
+
+        <!-- 两种消费者对比 -->
+        <div class="dashboard-two-col">
+          <!-- 左栏：数字分身区域 -->
+          <div class="config-card">
+            <div class="config-card-header">
+              <h3>👤 数字分身 · Digital Twins</h3>
+              <span class="pill done">基于真实用户持续校准</span>
+            </div>
+            <div class="config-card-body">
+              <p class="section-desc">数字分身对应现实中真实的人，通过多轮访谈数据持续导入校准，越来越接近真实用户的决策模式。</p>
+              <div class="digital-twins-list" id="digitalTwinsList"></div>
+            </div>
+          </div>
+
+          <!-- 右栏：完全虚拟消费者 -->
+          <div class="config-card">
+            <div class="config-card-header">
+              <h3>🤖 完全虚拟消费者 · Synthetic Personas</h3>
+              <span class="pill pending">规则+统计生成</span>
+            </div>
+            <div class="config-card-body">
+              <p class="section-desc">通过真实用户标签的统计分布、规则组合与权重算法生成的虚拟消费者画像，无现实个人一一对应。</p>
+              <div class="synthetic-personas-list" id="syntheticPersonasList"></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 数据导入与校准面板 -->
+        <div class="config-card">
+          <div class="config-card-header">
+            <h3>📥 数据同步 & 数字分身自动校准</h3>
+            <span class="status-chip active">自动校准引擎运行中</span>
+          </div>
+          <div class="config-card-body">
+            <p class="section-desc" style="margin-bottom:10px;">当用户洞察平台的用户样本库有更新（新增用户或现有用户信息变更）时，系统会自动检测并同步生成/更新对应数字分身。已构建数字分身的用户再次参加调研后，系统将自动完成校准。</p>
+            <div style="display:flex;gap:8px;margin-bottom:12px;">
+              <button class="primary-btn" id="manualForceSyncBtn" style="font-size:12px;padding:6px 16px;">🔄 从用户洞察平台同步数据</button>
+              <button class="ghost-btn" id="debugPanelBtn" style="font-size:11px;padding:4px 10px;">🔍 诊断</button>
+              <span class="pill" style="font-size:11px;align-self:center;">或点击右上角状态指示器</span>
+            </div>
+            <!-- 调试诊断面板 -->
+            <div id="debugPanel" style="display:none;margin-top:8px;padding:10px;background:rgba(3,10,22,0.7);border:1px solid rgba(167,139,250,0.3);border-radius:8px;font-family:monospace;font-size:11px;color:#a7d8f0;max-height:300px;overflow-y:auto;">
+              <div style="display:flex;justify-content:space-between;margin-bottom:6px;">
+                <strong>🔍 诊断信息</strong>
+                <button id="closeDebugBtn" style="background:none;border:none;color:#a78bfa;cursor:pointer;font-size:14px;">✕</button>
+              </div>
+              <div id="debugContent">点击"诊断"按钮开始检测...</div>
+            </div>
+            <div class="calibration-layout">
+              <!-- 数据导入表单 -->
+              <div class="calibration-left">
+                <h4 class="cal-subtitle">新访谈数据录入</h4>
+                <div class="import-form">
+                  <label>目标数字分身
+                    <select id="calibrationTargetUser">
+                      <option value="">— 请先同步用户样本库 —</option>
+                    </select>
+                  </label>
+                  <label>访谈轮次
+                    <input type="number" id="interviewRound" value="3" min="1" max="20" />
+                  </label>
+                  <label>访谈主题
+                    <select id="interviewTopic">
+                      <option>购车决策偏好</option>
+                      <option>功能需求深度挖掘</option>
+                      <option>价格敏感度评估</option>
+                      <option>品牌认知与忠诚度</option>
+                      <option>用车场景与体验反馈</option>
+                    </select>
+                  </label>
+                  <label>数据质量评级
+                    <select id="dataQuality">
+                      <option value="high">高 — 结构化深度访谈</option>
+                      <option value="mid" selected>中 — 半结构化问卷</option>
+                      <option value="low">低 — 快速反馈/行为数据</option>
+                    </select>
+                  </label>
+                  <button class="primary-btn" id="submitInterviewBtn" style="width:100%;margin-top:8px;">提交访谈数据 & 开始校准</button>
+                </div>
+              </div>
+
+              <!-- 访谈历史与准确度变化 -->
+              <div class="calibration-right">
+                <h4 class="cal-subtitle">访谈导入历史</h4>
+                <div class="interview-history" id="interviewHistory"></div>
+                <h4 class="cal-subtitle" style="margin-top:14px;">准确度收敛曲线</h4>
+                <div class="accuracy-chart-container">
+                  <div class="accuracy-chart" id="accuracyConvergenceChart"></div>
+                  <div class="chart-legend">
+                    <span class="legend-item"><span class="legend-dot train"></span> 张明远</span>
+                    <span class="legend-item"><span class="legend-dot val"></span> 李芳华</span>
+                    <span class="legend-item"><span class="legend-dot" style="background:#22d3ee;"></span> 王浩然</span>
+                    <span class="legend-item"><span class="legend-dot" style="background:#f59e0b;"></span> 陈建国</span>
+                    <span class="legend-item"><span class="legend-dot" style="background:#34d399;"></span> 赵小雪</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 群组分类面板 -->
+        <div class="config-card">
+          <div class="config-card-header">
+            <h3>📊 群组分类 · 虚拟消费者分布</h3>
+            <span class="pill done">与用户洞察平台群组规则一致</span>
+          </div>
+          <div class="config-card-body">
+            <p class="section-desc">虚拟消费者按照「人生阶段 × 价值观」双维度分为21个群组，与用户洞察Agent的分类规则和叫法保持一致。</p>
+            <div class="group-distribution-grid" id="groupDistributionGrid"></div>
+          </div>
+        </div>
+
+        <!-- 虚拟消费者详细列表 -->
+        <div class="config-card">
+          <div class="config-card-header">
+            <h3>📊 虚拟消费者数据库</h3>
+            <div style="display:flex;gap:8px;">
+              <select id="vcFilterType" style="min-height:30px;padding:0 8px;border:1px solid rgba(167,139,250,0.22);border-radius:6px;background:rgba(3,10,22,0.46);color:#ecf7ff;font-size:12px;">
+                <option value="all">全部类型</option>
+                <option value="digital_twin">仅数字分身</option>
+                <option value="synthetic">仅完全虚拟</option>
+              </select>
+              <select id="vcFilterGroup" style="min-height:30px;padding:0 8px;border:1px solid rgba(167,139,250,0.22);border-radius:6px;background:rgba(3,10,22,0.46);color:#ecf7ff;font-size:12px;">
+                <option value="all">全部群组</option>
+              </select>
+              <button class="ghost-btn sm" id="generateSyntheticBtn">+ 生成新的虚拟消费者</button>
+            </div>
+          </div>
+          <div class="config-card-body">
+            <div class="vc-database-table-wrap">
+              <table class="vc-database-table" id="vcDatabaseTable">
+                <thead>
+                  <tr>
+                    <th>类型</th><th>ID/姓名</th><th>数据来源</th><th>访谈轮次</th><th>准确度</th><th>置信度</th><th>决策特点</th><th>价格敏感</th><th>群组</th><th>操作</th>
+                  </tr>
+                </thead>
+                <tbody id="vcDatabaseBody"></tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ============================================================ -->
+      <!-- 页面2：智能问答交互 -->
+      <!-- ============================================================ -->
+      <div class="work-panel view" id="qaExchange">
+        <div class="panel-header">
+          <div>
+            <p class="eyebrow">Q&A — Intelligent Consumer Dialogue</p>
+            <h2>智能问答交互</h2>
+          </div>
+          <div class="top-actions">
+            <button class="ghost-btn" id="clearQABtn">清空对话</button>
+            <button class="primary-btn" id="exportQABtn">导出分析报告</button>
+          </div>
+        </div>
+
+        <div class="qa-layout">
+          <!-- 左栏：虚拟消费者选择 + 数据库 -->
+          <div class="qa-left">
+            <div class="config-card">
+              <div class="config-card-header">
+                <h3>🎯 选择对话对象</h3>
+              </div>
+              <div class="config-card-body">
+                <div class="qa-target-select">
+                  <label class="radio-card" style="grid-column:1/-1;">
+                    <input type="radio" name="qaTargetType" value="single" checked />
+                    <div class="radio-card-content">
+                      <strong>单一虚拟消费者</strong>
+                      <span>针对某一个数字分身或虚拟消费者提问</span>
+                    </div>
+                  </label>
+                  <label class="radio-card" style="grid-column:1/-1;">
+                    <input type="radio" name="qaTargetType" value="group" />
+                    <div class="radio-card-content">
+                      <strong>消费者群体分析</strong>
+                      <span>针对某一类消费者群体进行综合分析</span>
+                    </div>
+                  </label>
+                </div>
+                <div id="qaTargetSelector"></div>
+              </div>
+            </div>
+
+            <div class="config-card">
+              <div class="config-card-header">
+                <h3>📋 快捷问题模板</h3>
+              </div>
+              <div class="config-card-body">
+                <div class="quick-questions" id="quickQuestions">
+                  <button class="quick-q-btn" data-q="我有一款25万纯电SUV，续航600km，智能座舱配置丰富，你觉得这款车怎么样？">🚗 新车评价</button>
+                  <button class="quick-q-btn" data-q="对于这款车，你最看重哪些配置？哪些功能你觉得是多余的？">⚙️ 配置偏好</button>
+                  <button class="quick-q-btn" data-q="如果这款车定价28万，你觉得合理吗？你的心理价位是多少？">💰 定价感知</button>
+                  <button class="quick-q-btn" data-q="和同价位的竞品相比，这款车的核心竞争力在哪里？">🏆 竞品对比</button>
+                  <button class="quick-q-btn" data-q="从你的用车场景出发，这款车的优缺点分别是什么？">📋 场景分析</button>
+                  <button class="quick-q-btn" data-q="你会向朋友推荐这款车吗？为什么？">💬 推荐意愿</button>
+                </div>
+              </div>
+            </div>
+
+            <div class="config-card">
+              <div class="config-card-header">
+                <h3>🗄️ 虚拟消费者快速检索</h3>
+                <input type="text" id="vcSearchInput" placeholder="搜索姓名/标签..." style="min-height:30px;padding:0 10px;border:1px solid rgba(167,139,250,0.22);border-radius:6px;background:rgba(3,10,22,0.46);color:#ecf7ff;font-size:12px;width:160px;" />
+              </div>
+              <div class="config-card-body">
+                <div class="vc-quick-list" id="vcQuickList"></div>
+              </div>
+            </div>
+          </div>
+
+          <!-- 右栏：对话区 -->
+          <div class="qa-right">
+            <div class="config-card" style="flex:1;display:flex;flex-direction:column;">
+              <div class="config-card-header">
+                <h3>💬 对话区</h3>
+                <span class="pill done" id="qaRespondentLabel">对话对象：张明远（数字分身）</span>
+              </div>
+              <div class="config-card-body" style="flex:1;display:flex;flex-direction:column;">
+                <div class="qa-messages" id="qaMessages">
+                  <div class="qa-welcome">
+                    <div class="qa-welcome-icon">💬</div>
+                    <p>选择左侧的虚拟消费者，输入你的问题<br/>系统将基于该消费者的<strong>人格数据</strong>进行智能回答</p>
+                    <p class="muted-text">示例："我有一款20-30万的纯电SUV，你觉得怎么样？"</p>
+                  </div>
+                </div>
+                <div class="qa-input-area">
+                  <textarea id="qaInput" placeholder="输入你的问题..." rows="2"></textarea>
+                  <div class="qa-input-actions">
+                    <span class="muted-text" style="font-size:11px;">基于虚拟消费者人格数据回答</span>
+                    <button class="primary-btn" id="sendQABtn">发送 →</button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <!-- Toast 通知 -->
+  <div class="toast" id="toast" style="display:none;"></div>
+
+  <script src="../shared-data-bridge.js"></script>
+  <script src="./app.js"></script>
+</body>
+</html>

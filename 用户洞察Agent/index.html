@@ -1,0 +1,1018 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>车企AI用户洞察平台</title>
+    <link rel="stylesheet" href="./styles.css" />
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="../supabase-config.js"></script>
+    <script src="../auth.js"></script>
+  </head>
+  <body>
+    <!-- 登录守卫 -->
+    <script>
+      (async function guard() {
+        if (!window.SUPABASE_READY) { console.log('[守卫] 开发模式，跳过验证'); return; }
+        initSupabase();
+        var result = await AuthGuard.protect(false);
+        if (!result.authenticated && !result.devMode) return;
+        // 从云端同步用户数据
+        if (window.SharedDataStore) {
+          await SharedDataStore.loadFromCloud();
+        }
+      })();
+    </script>
+
+    <div class="app-shell">
+      <aside class="sidebar">
+        <div class="brand">
+          <div class="brand-mark">AI</div>
+          <div>
+            <strong>车企用户洞察</strong>
+            <span>Insight OS</span>
+          </div>
+        </div>
+
+        <nav class="nav" aria-label="主要功能">
+          <button class="nav-item active" data-view="overview">
+            <span class="nav-icon">◈</span>
+            定性调研
+          </button>
+          <div id="qualSubNavContainer" class="sub-nav-container" style="display: none;">
+            <div class="sub-nav-divider"></div>
+            <nav class="sub-nav" id="qualSubNav">
+              <!-- 定性调研二级标签 -->
+            </nav>
+          </div>
+          <button class="nav-item" data-view="quantOverview">
+            <span class="nav-icon">◈</span>
+            定量调研
+          </button>
+          <div id="quantSubNavContainer" class="sub-nav-container" style="display: none;">
+            <div class="sub-nav-divider"></div>
+            <nav class="sub-nav" id="quantSubNav">
+              <!-- 定量调研二级标签 -->
+            </nav>
+          </div>
+          <button class="nav-item" data-view="persona">
+            <span class="nav-icon">◈</span>
+            用户样本库
+          </button>
+          <div id="personaSubNavContainer" class="sub-nav-container" style="display: none;">
+            <div class="sub-nav-divider"></div>
+            <nav class="sub-nav" id="personaSubNav">
+              <!-- 用户样本库二级标签 -->
+            </nav>
+          </div>
+          <button class="nav-item" data-view="userInsight">
+            <span class="nav-icon">◈</span>
+            用户洞察
+          </button>
+          <div id="insightSubNavContainer" class="sub-nav-container" style="display: none;">
+            <div class="sub-nav-divider"></div>
+            <nav class="sub-nav" id="insightSubNav">
+              <!-- 用户洞察二级标签 -->
+            </nav>
+          </div>
+          <button class="nav-item" data-view="userPositioning">
+            <span class="nav-icon">◈</span>
+            用户定位
+          </button>
+        </nav>
+
+        <div class="sidebar-footer">
+          <span>当前项目</span>
+          <strong>纯电SUV年轻家庭调研</strong>
+        </div>
+      </aside>
+
+      <main class="main">
+        <header class="topbar">
+          <div>
+            <p class="eyebrow">MVP 原型</p>
+            <h1>AI用户洞察工作台</h1>
+          </div>
+          <div class="top-actions">
+            <div class="font-size-control" id="fontSizeControl" title="调整字体大小">
+              <button class="font-size-btn" id="fontSizeDec" title="缩小">−</button>
+              <span class="font-size-value" id="fontSizeValue">100%</span>
+              <button class="font-size-btn" id="fontSizeInc" title="放大">+</button>
+            </div>
+            <button class="ghost-btn" id="manualSyncBtn" title="手动同步用户样本到虚拟消费者平台" style="font-size:12px;padding:4px 12px;">📡 同步样本</button>
+            <button class="icon-btn" id="resetBtn" title="重置演示数据">↺</button>
+            <button class="primary-btn" id="generateReportBtn">生成调研报告</button>
+          </div>
+        </header>
+
+        <section class="metrics-row" aria-label="调研概览">
+          <article class="metric">
+            <span>访谈进度</span>
+            <strong id="progressMetric">42%</strong>
+            <div class="meter"><i id="progressBar"></i></div>
+          </article>
+          <article class="metric">
+            <span>高价值信号</span>
+            <strong id="signalMetric">8</strong>
+            <small>续航、空间、智驾、价格</small>
+          </article>
+          <article class="metric">
+            <span>用户情绪</span>
+            <strong id="emotionMetric">谨慎乐观</strong>
+            <small>对智舱兴趣高，对冬季续航担忧</small>
+          </article>
+          <article class="metric">
+            <span>剩余时间</span>
+            <strong id="timeMetric">23:40</strong>
+            <small>建议进入竞品对比问题</small>
+          </article>
+        </section>
+
+        <section class="workspace">
+          <div class="work-panel view active" id="overview">
+            <div class="panel-header">
+              <div>
+                <p class="eyebrow">Research command center</p>
+                <h2>调研场次汇总</h2>
+              </div>
+              <div class="summary-count">
+                <strong id="sessionCount">0</strong>
+                <span>场调研</span>
+              </div>
+            </div>
+
+            <div class="summary-filters">
+              <label>
+                <span>服务产品</span>
+                <select id="productFilter"></select>
+              </label>
+              <label>
+                <span>调研类型</span>
+                <select id="typeFilter"></select>
+              </label>
+              <label>
+                <span>场次号</span>
+                <select id="sessionFilter"></select>
+              </label>
+              <button class="ghost-btn" id="clearFiltersBtn">重置筛选</button>
+            </div>
+
+            <div class="summary-groups" id="sessionGroups"></div>
+          </div>
+
+          <div class="work-panel view" id="research">
+            <div class="panel-header">
+              <div>
+                <p class="eyebrow">Research cockpit</p>
+                <h2 id="researchTitle">用户调研模块</h2>
+              </div>
+              <div style="display: flex; align-items: center; gap: 14px;">
+                <button class="ghost-btn hidden" id="closeSessionBtn" title="关闭当前调研，返回汇总页面">✕ 关闭</button>
+                <div class="segmented" role="tablist" aria-label="调研阶段">
+                  <button class="segment active" data-stage="prepare">准备</button>
+                  <button class="segment" data-stage="live">访谈中</button>
+                  <button class="segment" data-stage="report">报告</button>
+                </div>
+              </div>
+            </div>
+
+            <div class="stage active" id="prepareStage">
+              <div class="start-session-banner hidden" id="startSessionBanner">
+                <div>
+                  <p class="eyebrow">Ready to launch</p>
+                  <h3>调研准备已完成</h3>
+                  <span>点击开始后，系统将开启音视频采集、实时转写、AI主持提醒和报告生成流程。</span>
+                </div>
+                <button class="primary-btn" id="startSessionBtn" type="button">开始调研</button>
+              </div>
+              <form class="brief-form" id="briefForm">
+                <label>
+                  <span>调研目的</span>
+                  <textarea id="goalInput">了解25-35岁年轻家庭对纯电SUV的购买顾虑，识别目标用户决策因素。</textarea>
+                </label>
+                
+                <!-- 调研对象信息 - 头像卡片展示 -->
+                <div class="audience-section">
+                  <div class="section-title">
+                    <h3>调研用户</h3>
+                    <button class="ghost-btn" id="manageAudienceBtn" onclick="openAudienceModal()">管理用户</button>
+                  </div>
+                  
+                  <div class="audience-avatars" id="audienceAvatars">
+                    <!-- 动态生成用户头像卡片 -->
+                  </div>
+                </div>
+
+                <label>
+                  <span>车型范围</span>
+                  <input id="productInput" value="本品牌A车型，对比竞品B/C车型" />
+                </label>
+                <label>
+                  <span>访谈时长</span>
+                  <input id="durationInput" value="60分钟" />
+                </label>
+                <button class="primary-btn" type="submit">AI生成调研提纲</button>
+              </form>
+
+              <div class="outline-card">
+                <div class="section-title">
+                  <h3>AI调研提纲</h3>
+                  <button class="ghost-btn" id="editOutlineBtn">手动优化</button>
+                </div>
+                <ol id="outlineList" class="outline-list"></ol>
+              </div>
+            </div>
+
+            <div class="stage" id="liveStage">
+              <div class="live-grid">
+                <section class="recording">
+                  <div class="video-feed">
+                    <video id="uploadedVideo" class="uploaded-video" controls></video>
+                    <div class="face user-a">用户A</div>
+                    <div class="face moderator">主持人</div>
+                    <div class="wave">
+                      <span></span><span></span><span></span><span></span><span></span>
+                    </div>
+                    <div class="capture-badge" id="captureBadge">音频 / 视频待采集</div>
+                  </div>
+                  <div class="capture-status" aria-label="采集状态">
+                    <span class="status-chip" id="audioStatus">音频：待开始</span>
+                    <span class="status-chip" id="videoStatus">视频：待开始</span>
+                    <span class="status-chip" id="textStatus">文本：待同步</span>
+                  </div>
+                  <label class="upload-box" for="videoUpload">
+                    <span>上传视频文件</span>
+                    <strong id="uploadFileName">支持访谈视频、试驾回访视频、焦点小组录像</strong>
+                    <input id="videoUpload" type="file" accept="video/*" />
+                  </label>
+                  <div class="recording-actions">
+                    <button class="danger-btn" id="recordBtn">开始实时记录</button>
+                    <button class="ghost-btn" id="nextLineBtn">模拟用户发言</button>
+                  </div>
+                </section>
+
+                <section class="transcript">
+                  <div class="section-title">
+                    <h3>实时转写</h3>
+                    <span id="liveState">待开始</span>
+                  </div>
+                  <div id="transcriptFeed" class="transcript-feed"></div>
+                </section>
+
+                <section class="full-transcript">
+                  <div class="section-title">
+                    <h3>完整对话文本</h3>
+                    <button class="ghost-btn" id="copyTranscriptBtn">复制全文</button>
+                  </div>
+                  <textarea id="fullTranscriptText" readonly placeholder="开始实时记录或上传视频后，系统会在这里同步生成完整对话文本。"></textarea>
+                  <div class="transcript-tools">
+                    <span id="transcriptStats">0条发言 · 0字</span>
+                    <button class="ghost-btn" id="clearTranscriptBtn">清空文本</button>
+                  </div>
+                </section>
+              </div>
+            </div>
+
+            <div class="stage" id="reportStage">
+              <div class="report-grid">
+                <article class="report-block wide playback-block">
+                  <div class="section-title">
+                    <h3>音视频回放</h3>
+                    <span id="playbackStatus">访谈资料已归档</span>
+                  </div>
+                  <div class="playback-grid">
+                    <div class="media-player">
+                      <span>音频回放</span>
+                      <audio id="reportAudio" controls></audio>
+                      <p>支持回听完整访谈录音，并与逐字稿时间线对齐。</p>
+                    </div>
+                    <div class="media-player">
+                      <span>视频回放</span>
+                      <video id="reportVideo" controls></video>
+                      <p>支持回看访谈录像、表情动作和关键情绪节点。</p>
+                    </div>
+                  </div>
+                </article>
+                <article class="report-block">
+                  <h3>核心洞察</h3>
+                  <ul id="insightList"></ul>
+                </article>
+                <article class="report-block">
+                  <h3>目标用户画像</h3>
+                  <div id="personaSummary" class="persona-summary"></div>
+                </article>
+                <article class="report-block wide">
+                  <h3>产品与竞品看法</h3>
+                  <div class="comparison">
+                    <div>
+                      <strong>本品牌A车型</strong>
+                      <p>智能座舱体验有吸引力，家庭空间被认可，但冬季续航可信度需要更强背书。</p>
+                    </div>
+                    <div>
+                      <strong>竞品B/C车型</strong>
+                      <p>用户认可品牌口碑和补能便利，但认为座舱交互不够新鲜，配置性价比一般。</p>
+                    </div>
+                  </div>
+                </article>
+              </div>
+            </div>
+          </div>
+
+          <div class="work-panel view" id="persona">
+            <div class="panel-header">
+              <div>
+                <p class="eyebrow">User Sample Library</p>
+                <h2>用户样本库</h2>
+              </div>
+              <div class="summary-count">
+                <strong id="userSampleCount">0</strong>
+                <span>个用户样本</span>
+              </div>
+            </div>
+
+            <div class="summary-filters">
+              <label>
+                <span>产品</span>
+                <select id="userProductFilter">
+                  <option value="">全部产品</option>
+                  <option value="本品牌A车型">本品牌A车型</option>
+                  <option value="本品牌B车型">本品牌B车型</option>
+                  <option value="竞品B车型">竞品B车型</option>
+                </select>
+              </label>
+              <label>
+                <span>调研类型</span>
+                <select id="userTypeFilter">
+                  <option value="">全部类型</option>
+                  <option value="一对一深访">一对一深访</option>
+                  <option value="焦点小组">焦点小组</option>
+                  <option value="试驾回访">试驾回访</option>
+                  <option value="竞品车主访谈">竞品车主访谈</option>
+                  <option value="概念测试">概念测试</option>
+                  <option value="销售线索回访">销售线索回访</option>
+                </select>
+              </label>
+              <label>
+                <span>起始日期</span>
+                <input type="date" id="userStartDate" />
+              </label>
+              <label>
+                <span>结束日期</span>
+                <input type="date" id="userEndDate" />
+              </label>
+              <label>
+                <span>年龄段</span>
+                <select id="userAgeRange">
+                  <option value="">全部年龄</option>
+                  <option value="18-25">18-25岁</option>
+                  <option value="26-30">26-30岁</option>
+                  <option value="31-35">31-35岁</option>
+                  <option value="36-40">36-40岁</option>
+                  <option value="41-50">41-50岁</option>
+                </select>
+              </label>
+              <label>
+                <span>性别</span>
+                <select id="userGenderFilter">
+                  <option value="">全部</option>
+                  <option value="男">男</option>
+                  <option value="女">女</option>
+                </select>
+              </label>
+              <label>
+                <span>婚姻状况</span>
+                <select id="userMaritalFilter">
+                  <option value="">全部</option>
+                  <option value="已婚">已婚</option>
+                  <option value="未婚">未婚</option>
+                </select>
+              </label>
+              <label>
+                <span>城市线级</span>
+                <select id="userCityLevelFilter">
+                  <option value="">全部</option>
+                  <option value="一线">一线</option>
+                  <option value="二线">二线</option>
+                  <option value="三线">三线</option>
+                </select>
+              </label>
+              <label>
+                <span>是否为长安车主</span>
+                <select id="userChanganOwnerFilter">
+                  <option value="">全部</option>
+                  <option value="non-changan">非长安车主</option>
+                  <option value="current-changan">长安现车主</option>
+                  <option value="former-changan">长安前车主</option>
+                </select>
+              </label>
+              <label id="changanBrandLabel" style="display:none;">
+                <span>现/曾购买的长安车型所属品牌</span>
+                <select id="userChanganBrandFilter">
+                  <option value="">全部品牌</option>
+                  <option value="长安V标">长安V标</option>
+                  <option value="长安启源">长安启源</option>
+                  <option value="深蓝">深蓝</option>
+                  <option value="阿维塔">阿维塔</option>
+                  <option value="凯程">凯程</option>
+                </select>
+              </label>
+              <button class="ghost-btn" id="clearUserFiltersBtn">重置筛选</button>
+            </div>
+
+            <div class="user-sample-list" id="userSampleList"></div>
+          </div>
+
+          <div class="work-panel view" id="competitor">
+            <div class="panel-header">
+              <div>
+                <p class="eyebrow">Competitive insight</p>
+                <h2>竞品洞察</h2>
+              </div>
+            </div>
+            <div class="matrix" id="competitorMatrix"></div>
+          </div>
+
+          <div class="work-panel view" id="marketing">
+            <div class="panel-header">
+              <div>
+                <p class="eyebrow">Go-to-market</p>
+                <h2>营销策略建议</h2>
+              </div>
+            </div>
+            <div class="strategy-grid" id="strategyCards"></div>
+          </div>
+
+          <div class="work-panel view" id="knowledge">
+            <div class="panel-header">
+              <div>
+                <p class="eyebrow">Knowledge base</p>
+                <h2>洞察知识库</h2>
+              </div>
+              <input class="search" id="knowledgeSearch" placeholder="搜索：续航、智驾、竞品、家庭..." />
+            </div>
+            <div class="knowledge-list" id="knowledgeList"></div>
+          </div>
+
+          <!-- 定量调研模块 -->
+          <div class="work-panel view" id="quantOverview">
+            <div class="panel-header">
+              <div>
+                <p class="eyebrow">Quantitative Research</p>
+                <h2>定量调研管理</h2>
+              </div>
+              <button class="primary-btn" id="createSurveyBtn">创建问卷</button>
+            </div>
+
+            <div class="summary-filters">
+              <label>
+                <span>问卷状态</span>
+                <select id="surveyStatusFilter">
+                  <option value="">全部状态</option>
+                  <option value="draft">草稿</option>
+                  <option value="active">收集中</option>
+                  <option value="closed">已关闭</option>
+                </select>
+              </label>
+              <label>
+                <span>问卷类型</span>
+                <select id="surveyTypeFilter">
+                  <option value="">全部类型</option>
+                  <option value="satisfaction">满意度调查</option>
+                  <option value="nps">NPS净推荐值</option>
+                  <option value="brand">品牌认知</option>
+                  <option value="product">产品偏好</option>
+                </select>
+              </label>
+            </div>
+
+            <div class="summary-groups" id="surveyGroups"></div>
+          </div>
+
+          <div class="work-panel view" id="surveyEditor">
+            <div class="panel-header">
+              <div>
+                <p class="eyebrow">Survey Editor</p>
+                <h2 id="surveyEditorTitle">新建问卷</h2>
+              </div>
+              <div style="display: flex; gap: 10px;">
+                <button class="ghost-btn" id="previewSurveyBtn">预览</button>
+                <button class="primary-btn" id="saveSurveyBtn">保存问卷</button>
+              </div>
+            </div>
+
+            <form class="brief-form" id="surveyForm">
+              <label>
+                <span>问卷标题</span>
+                <input id="surveyTitleInput" placeholder="输入问卷标题" />
+              </label>
+              <label>
+                <span>问卷描述</span>
+                <textarea id="surveyDescInput" placeholder="描述问卷目的和受众"></textarea>
+              </label>
+              <label>
+                <span>问卷类型</span>
+                <select id="surveyTypeInput">
+                  <option value="satisfaction">满意度调查</option>
+                  <option value="nps">NPS净推荐值</option>
+                  <option value="brand">品牌认知</option>
+                  <option value="product">产品偏好</option>
+                </select>
+              </label>
+            </form>
+
+            <div class="outline-card">
+              <div class="section-title">
+                <h3>问题列表</h3>
+                <button class="ghost-btn" id="addQuestionBtn">添加问题</button>
+              </div>
+              <div id="questionList" class="outline-list"></div>
+            </div>
+          </div>
+
+          <div class="work-panel view" id="surveyStats">
+            <div class="panel-header">
+              <div>
+                <p class="eyebrow">Survey Analytics</p>
+                <h2 id="surveyStatsTitle">问卷数据统计</h2>
+              </div>
+              <button class="ghost-btn" id="exportDataBtn">导出数据</button>
+            </div>
+
+            <div class="metrics-row" aria-label="问卷概览">
+              <article class="metric">
+                <span>回收数量</span>
+                <strong id="responseCount">0</strong>
+                <small>目标样本量：500</small>
+              </article>
+              <article class="metric">
+                <span>完成率</span>
+                <strong id="completionRate">0%</strong>
+                <small>平均用时：8分钟</small>
+              </article>
+              <article class="metric">
+                <span>NPS得分</span>
+                <strong id="npsScore">--</strong>
+                <small>行业基准：35</small>
+              </article>
+              <article class="metric">
+                <span>满意度</span>
+                <strong id="satisfactionScore">--</strong>
+                <small>5分制评分</small>
+              </article>
+            </div>
+
+            <div class="report-block wide">
+              <h3>数据可视化</h3>
+              <div id="chartContainer" style="min-height: 300px; display: flex; align-items: center; justify-content: center; color: #94a3b8;">
+                <p>图表区域 - 可集成 Chart.js 或 ECharts</p>
+              </div>
+            </div>
+
+            <div class="report-block wide">
+              <h3>交叉分析</h3>
+              <div id="crossAnalysis" class="comparison">
+                <div>
+                  <strong>年龄段分布</strong>
+                  <p>18-25岁: 25% | 26-35岁: 45% | 36-45岁: 20% | 46岁以上: 10%</p>
+                </div>
+                <div>
+                  <strong>城市级别分布</strong>
+                  <p>一线城市: 35% | 二线城市: 40% | 三线及以下: 25%</p>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <aside class="assistant-panel">
+            <div class="section-title">
+              <h3>AI主持助手</h3>
+              <span id="assistantStatus">在线</span>
+            </div>
+            <div class="question-progress" id="questionProgress"></div>
+            <div class="suggestion-box">
+              <span>下一步建议</span>
+              <p id="nextSuggestion">先确认用户家庭成员结构，再进入真实用车场景。</p>
+            </div>
+            <div class="emotion-card">
+              <span>情绪与动作</span>
+              <div class="emotion-meter">
+                <i style="width: 68%"></i>
+              </div>
+              <p id="emotionNote">用户语速放慢，谈到冬季续航时出现停顿，建议追问真实经历。</p>
+            </div>
+            <div class="timer-card">
+              <span>时间提醒</span>
+              <strong id="timerLarge">23:40</strong>
+              <p>竞品对比还未充分展开。</p>
+            </div>
+          </aside>
+        </section>
+
+        <!-- 用户详情页 -->
+        <div class="work-panel view" id="userDetail">
+          <div class="panel-header">
+            <div style="display:flex;align-items:center;gap:12px;">
+              <button class="ghost-btn" onclick="closeUserDetail()">&#8592; 返回用户样本库</button>
+              <h2>用户详情</h2>
+            </div>
+          </div>
+          <div class="user-detail-container" id="userDetailContainer">
+            <!-- 动态渲染 -->
+          </div>
+        </div>
+
+        <!-- 用户洞察页 -->
+        <div class="work-panel view" id="userInsight">
+          <div class="panel-header">
+            <div>
+              <p class="eyebrow">User Insight</p>
+              <h2>用户洞察</h2>
+            </div>
+            <div class="summary-count">
+              <strong id="insightUserCount">0</strong>
+              <span>个用户样本</span>
+            </div>
+          </div>
+
+          <!-- 筛选区域 -->
+          <div class="insight-filters" id="insightFilters">
+            <label>
+              <span>年份</span>
+              <select id="insightYearFilter">
+                <option value="">全部年份</option>
+                <option value="2026">2026年</option>
+                <option value="2025">2025年</option>
+              </select>
+            </label>
+            <label>
+              <span>年龄段</span>
+              <select id="insightAgeFilter">
+                <option value="">全部年龄</option>
+                <option value="18-25">18-25岁</option>
+                <option value="26-30">26-30岁</option>
+                <option value="31-35">31-35岁</option>
+                <option value="36-40">36-40岁</option>
+                <option value="41-50">41-50岁</option>
+                <option value="50+">50岁以上</option>
+              </select>
+            </label>
+            <label>
+              <span>性别</span>
+              <select id="insightGenderFilter">
+                <option value="">全部</option>
+                <option value="男">男</option>
+                <option value="女">女</option>
+              </select>
+            </label>
+            <label>
+              <span>婚姻状况</span>
+              <select id="insightMaritalFilter">
+                <option value="">全部</option>
+                <option value="已婚">已婚</option>
+                <option value="未婚">未婚</option>
+                <option value="离异">离异</option>
+              </select>
+            </label>
+            <label>
+              <span>生育情况</span>
+              <select id="insightChildrenFilter">
+                <option value="">全部</option>
+                <option value="无子女">无子女</option>
+                <option value="计划中">计划中</option>
+                <option value="1个孩子">1个孩子</option>
+                <option value="2个孩子">2个孩子</option>
+                <option value="3个及以上">3个及以上</option>
+              </select>
+            </label>
+            <label>
+              <span>城市线级</span>
+              <select id="insightCityLevelFilter">
+                <option value="">全部</option>
+                <option value="一线">一线</option>
+                <option value="二线">二线</option>
+                <option value="三线">三线</option>
+                <option value="四线及以下">四线及以下</option>
+              </select>
+            </label>
+            <label>
+              <span>所在城市</span>
+              <select id="insightCityFilter">
+                <option value="">全部城市</option>
+              </select>
+            </label>
+            <label>
+              <span>教育程度</span>
+              <select id="insightEducationFilter">
+                <option value="">全部</option>
+                <option value="高中及以下">高中及以下</option>
+                <option value="大专">大专</option>
+                <option value="本科">本科</option>
+                <option value="硕士">硕士</option>
+                <option value="博士及以上">博士及以上</option>
+              </select>
+            </label>
+            <label>
+              <span>家庭年收入</span>
+              <select id="insightIncomeFilter">
+                <option value="">全部</option>
+                <option value="10万以下">10万以下</option>
+                <option value="10-20万">10-20万</option>
+                <option value="20-30万">20-30万</option>
+                <option value="30-50万">30-50万</option>
+                <option value="50-100万">50-100万</option>
+                <option value="100万以上">100万以上</option>
+              </select>
+            </label>
+            <label>
+              <span>当前拥车情况</span>
+              <select id="insightCarFilter">
+                <option value="">全部</option>
+                <option value="无车">无车</option>
+                <option value="1辆燃油车">1辆燃油车</option>
+                <option value="1辆新能源车">1辆新能源车</option>
+                <option value="多辆车">多辆车</option>
+              </select>
+            </label>
+            <button class="ghost-btn" id="clearInsightFiltersBtn">重置筛选</button>
+          </div>
+
+          <!-- 购买力横向标签 -->
+          <div class="insight-power-tabs" id="insightPowerTabs">
+            <span class="power-label">购买力范围：</span>
+            <button class="power-tab active" data-power="all">全部</button>
+            <button class="power-tab" data-power="10万以下">10万以下</button>
+            <button class="power-tab" data-power="10-20万">10-20万</button>
+            <button class="power-tab" data-power="20-30万">20-30万</button>
+            <button class="power-tab" data-power="30万以上">30万以上</button>
+          </div>
+
+          <!-- 用户洞察矩阵 -->
+          <div class="insight-matrix-container" id="insightMatrixContainer">
+            <div class="insight-matrix-header">
+              <div class="matrix-y-label">价值观</div>
+              <div class="matrix-x-label">人生阶段</div>
+            </div>
+            <div class="insight-matrix-wrapper" id="insightMatrixWrapper">
+              <!-- 动态渲染矩阵 -->
+            </div>
+          </div>
+
+          <!-- 群组详情面板 -->
+          <div class="insight-group-detail hidden" id="insightGroupDetail">
+            <div class="group-detail-header">
+              <button class="ghost-btn" onclick="closeGroupDetail()">&#8592; 返回矩阵</button>
+              <h3 id="groupDetailTitle"></h3>
+            </div>
+            <div class="group-detail-content" id="groupDetailContent">
+              <!-- 动态渲染 -->
+            </div>
+          </div>
+        </div>
+
+        <!-- 用户定位 -->
+        <div class="work-panel view" id="userPositioning">
+          <div class="panel-header">
+            <div>
+              <p class="eyebrow">User Positioning</p>
+              <h2>用户定位</h2>
+            </div>
+          </div>
+          <div class="positioning-tabs">
+            <button class="positioning-tab active" data-positioning-tab="vehicleConfig">车型配置</button>
+            <button class="positioning-tab" data-positioning-tab="targetUsers">目标用户群</button>
+            <button class="positioning-tab" data-positioning-tab="potentialUsers">潜在用户群</button>
+          </div>
+
+          <!-- 车型配置 -->
+          <div class="positioning-panel active" id="vehicleConfigPanel">
+            <div class="config-toolbar">
+              <div class="config-model-select">
+                <label>
+                  <span>选择车型</span>
+                  <select id="configModelSelect">
+                    <option value="">请选择车型</option>
+                  </select>
+                </label>
+                <button class="primary-btn" id="addModelBtn">+ 新增车型</button>
+              </div>
+              <div class="config-actions">
+                <button class="ghost-btn" id="importVehicleConfigBtn">导入配置</button>
+                <button class="ghost-btn" id="loadDemoConfigBtn">加载示例数据</button>
+                <button class="primary-btn" id="saveVehicleConfigBtn">保存配置</button>
+              </div>
+            </div>
+            <div class="vehicle-config-grid" id="vehicleConfigGrid">
+              <!-- 8大模块动态渲染 -->
+            </div>
+          </div>
+
+          <!-- 目标用户群 -->
+          <div class="positioning-panel" id="targetUsersPanel">
+            <div class="target-toolbar">
+              <div class="target-model-select">
+                <label>
+                  <span>选择分析车型</span>
+                  <select id="targetModelSelect">
+                    <option value="">请选择车型</option>
+                  </select>
+                </label>
+                <label>
+                  <span>筛选调研场次</span>
+                  <select id="targetSessionFilter">
+                    <option value="">全部场次</option>
+                  </select>
+                </label>
+                <button class="primary-btn" id="analyzeTargetUsersBtn">AI分析目标用户</button>
+              </div>
+            </div>
+            <!-- 分析结果汇总面板 -->
+            <div class="target-summary-panel hidden" id="targetSummaryPanel">
+              <div class="target-summary-header">
+                <h4>分析结果汇总</h4>
+                <span class="target-summary-badge" id="targetSummaryBadge"></span>
+              </div>
+              <div class="target-summary-content" id="targetSummaryContent"></div>
+            </div>
+            <div class="target-users-content" id="targetUsersContent">
+              <div class="empty-state" id="targetUsersEmpty">
+                <p>请选择车型并点击"AI分析目标用户"开始分析</p>
+              </div>
+              <div class="target-results hidden" id="targetResults">
+                <div class="target-chart" id="targetChart"></div>
+                <div class="target-analysis" id="targetAnalysis"></div>
+              </div>
+            </div>
+          </div>
+
+          <!-- 潜在用户群 -->
+          <div class="positioning-panel" id="potentialUsersPanel">
+            <div class="potential-toolbar">
+              <div class="potential-model-select">
+                <label>
+                  <span>选择分析车型</span>
+                  <select id="potentialModelSelect">
+                    <option value="">请选择车型</option>
+                  </select>
+                </label>
+                <button class="ghost-btn" id="importVirtualConsumersBtn">导入虚拟消费者</button>
+                <button class="primary-btn" id="analyzePotentialUsersBtn">AI分析潜在用户</button>
+              </div>
+            </div>
+            <div class="potential-users-content" id="potentialUsersContent">
+              <div class="empty-state" id="potentialUsersEmpty">
+                <p>请导入虚拟消费者数据并点击"AI分析潜在用户"开始分析</p>
+              </div>
+              <div class="potential-results hidden" id="potentialResults">
+                <div class="potential-chart" id="potentialChart"></div>
+                <div class="potential-analysis" id="potentialAnalysis"></div>
+                <div class="potential-highlight hidden" id="potentialHighlight"></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </main>
+
+<!-- 管理调研用户模态框 -->
+<div class="modal-overlay hidden" id="audienceModal">
+  <div class="modal-container">
+    <div class="modal-header">
+      <h3>管理调研用户</h3>
+      <button class="close-btn" id="closeAudienceModal" onclick="closeAudienceModal()">&times;</button>
+    </div>
+    <div class="modal-body">
+      <div class="user-list" id="userListContainer">
+        <!-- 动态生成用户列表 -->
+      </div>
+      <button class="add-user-btn" id="addUserBtn" onclick="addNewUser()">+ 添加用户</button>
+      
+      <!-- 用户编辑表单 -->
+      <div class="user-edit-form hidden" id="userEditForm">
+        <h4 id="userEditTitle">添加用户</h4>
+        <div class="audience-form-grid">
+          <label class="audience-field full-width">
+            <span>唯一识别码</span>
+            <input id="editAudienceUniqueCode" readonly placeholder="保存后自动生成" style="background:#f8fafc;color:#64748b;" />
+          </label>
+          <label class="audience-field full-width" style="display:flex;gap:8px;align-items:flex-end;">
+            <span style="flex-shrink:0;">关联已有用户</span>
+            <input id="linkUserCodeInput" placeholder="输入已有用户的识别码，快速关联历史信息" style="flex:1;" />
+            <button type="button" class="primary-btn" onclick="linkUserByCode()" style="padding:6px 12px;font-size:13px;">关联</button>
+          </label>
+          <label class="audience-field">
+            <span>姓名</span>
+            <input id="editAudienceName" placeholder="用户姓名或编号" />
+          </label>
+          <label class="audience-field">
+            <span>性别</span>
+            <select id="editAudienceGender">
+              <option value="">请选择</option>
+              <option value="男">男</option>
+              <option value="女">女</option>
+            </select>
+          </label>
+          <label class="audience-field">
+            <span>年龄</span>
+            <input id="editAudienceAge" type="number" placeholder="例如：28" min="18" max="70" />
+          </label>
+          <label class="audience-field">
+            <span>婚姻状况</span>
+            <select id="editAudienceMarital">
+              <option value="">请选择</option>
+              <option value="未婚">未婚</option>
+              <option value="已婚">已婚</option>
+              <option value="离异">离异</option>
+            </select>
+          </label>
+          <label class="audience-field">
+            <span>生育情况</span>
+            <select id="editAudienceChildren">
+              <option value="">请选择</option>
+              <option value="无子女">无子女</option>
+              <option value="计划中">计划生育</option>
+              <option value="1个孩子">1个孩子</option>
+              <option value="2个孩子">2个孩子</option>
+              <option value="3个及以上">3个及以上</option>
+            </select>
+          </label>
+          <label class="audience-field">
+            <span>所在城市</span>
+            <input id="editAudienceCity" placeholder="例如：上海" />
+          </label>
+          <label class="audience-field">
+            <span>城市线级</span>
+            <select id="editAudienceCityLevel">
+              <option value="">请选择</option>
+              <option value="一线">一线城市</option>
+              <option value="二线">二线城市</option>
+              <option value="三线">三线城市</option>
+              <option value="四线及以下">四线及以下</option>
+            </select>
+          </label>
+          <label class="audience-field">
+            <span>教育程度</span>
+            <select id="editAudienceEducation">
+              <option value="">请选择</option>
+              <option value="高中及以下">高中及以下</option>
+              <option value="大专">大专</option>
+              <option value="本科">本科</option>
+              <option value="硕士">硕士</option>
+              <option value="博士及以上">博士及以上</option>
+            </select>
+          </label>
+          <label class="audience-field">
+            <span>家庭年收入（万元）</span>
+            <select id="editAudienceIncome">
+              <option value="">请选择</option>
+              <option value="10万以下">10万以下</option>
+              <option value="10-20万">10-20万</option>
+              <option value="20-30万">20-30万</option>
+              <option value="30-50万">30-50万</option>
+              <option value="50-100万">50-100万</option>
+              <option value="100万以上">100万以上</option>
+            </select>
+          </label>
+          <label class="audience-field">
+            <span>当前拥车情况</span>
+            <select id="editAudienceCarOwnership">
+              <option value="">请选择</option>
+              <option value="无车">无车</option>
+              <option value="1辆燃油车">1辆燃油车</option>
+              <option value="1辆新能源车">1辆新能源车</option>
+              <option value="多辆车">多辆车</option>
+            </select>
+          </label>
+          <label class="audience-field full-width">
+            <span>当前车辆品牌/型号</span>
+            <input id="editAudienceCurrentCar" placeholder="例如：特斯拉Model 3、丰田凯美瑞" />
+          </label>
+          <label class="audience-field full-width">
+            <span>备注信息</span>
+            <textarea id="editAudienceNotes" rows="2" placeholder="其他需要记录的用户特征或背景信息"></textarea>
+          </label>
+        </div>
+        <div class="form-actions">
+          <button class="ghost-btn" id="cancelEditUserBtn" onclick="hideUserEditForm()">取消</button>
+          <button class="primary-btn" id="saveUserBtn" onclick="saveUser()">保存</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+    <script src="../shared-data-bridge.js"></script>
+    <script src="./app.js"></script>
+
+    <!-- 用户定位 - 群组用户列表弹窗 -->
+    <div class="modal-overlay hidden" id="groupUsersModal">
+      <div class="modal-container" style="max-width: 600px;">
+        <div class="modal-header">
+          <h3 id="groupUsersModalTitle">群组用户列表</h3>
+          <button class="close-btn" onclick="closeGroupUsersModal()">&times;</button>
+        </div>
+        <div class="modal-body">
+          <div class="group-users-list" id="groupUsersList"></div>
+        </div>
+      </div>
+    </div>
+  </body>
+</html>

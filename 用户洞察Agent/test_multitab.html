@@ -1,0 +1,365 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>多标签功能自动化测试</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        .test-container {
+            max-width: 900px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            padding: 20px;
+        }
+        h1 {
+            color: #333;
+            border-bottom: 2px solid #3b82f6;
+            padding-bottom: 10px;
+        }
+        .test-section {
+            margin: 20px 0;
+            padding: 15px;
+            border: 1px solid #e0e0e0;
+            border-radius: 6px;
+        }
+        .test-section h2 {
+            color: #3b82f6;
+            margin-top: 0;
+            font-size: 18px;
+        }
+        .test-result {
+            padding: 10px;
+            margin: 8px 0;
+            border-radius: 4px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        .pass {
+            background: #d4edda;
+            color: #155724;
+            border-left: 4px solid #28a745;
+        }
+        .fail {
+            background: #f8d7da;
+            color: #721c24;
+            border-left: 4px solid #dc3545;
+        }
+        .pending {
+            background: #fff3cd;
+            color: #856404;
+            border-left: 4px solid #ffc107;
+        }
+        .icon {
+            font-weight: bold;
+            font-size: 18px;
+        }
+        .summary {
+            margin-top: 20px;
+            padding: 15px;
+            background: #e7f3ff;
+            border-radius: 6px;
+            border-left: 4px solid #3b82f6;
+        }
+        button {
+            background: #3b82f6;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+            margin: 5px;
+        }
+        button:hover {
+            background: #2563eb;
+        }
+        #appFrame {
+            width: 100%;
+            height: 600px;
+            border: 2px solid #3b82f6;
+            border-radius: 8px;
+            margin-top: 20px;
+        }
+    </style>
+</head>
+<body>
+    <div class="test-container">
+        <h1>多标签功能自动化测试</h1>
+        
+        <div>
+            <button onclick="runAllTests()">运行所有测试</button>
+            <button onclick="clearResults()">清除结果</button>
+        </div>
+
+        <iframe id="appFrame" src="index.html"></iframe>
+
+        <div class="test-section">
+            <h2>测试结果</h2>
+            <div id="testResults"></div>
+        </div>
+
+        <div class="summary" id="summary" style="display:none;">
+            <strong>测试总结：</strong>
+            <span id="summaryText"></span>
+        </div>
+    </div>
+
+    <script>
+        let testResults = [];
+
+        function addResult(testName, passed, message) {
+            const resultDiv = document.createElement('div');
+            resultDiv.className = `test-result ${passed ? 'pass' : 'fail'}`;
+            resultDiv.innerHTML = `
+                <span class="icon">${passed ? '✓' : '✗'}</span>
+                <div>
+                    <strong>${testName}</strong>
+                    <div>${message}</div>
+                </div>
+            `;
+            document.getElementById('testResults').appendChild(resultDiv);
+            testResults.push({ name: testName, passed });
+        }
+
+        function clearResults() {
+            document.getElementById('testResults').innerHTML = '';
+            document.getElementById('summary').style.display = 'none';
+            testResults = [];
+        }
+
+        function showSummary() {
+            const total = testResults.length;
+            const passed = testResults.filter(r => r.passed).length;
+            const failed = total - passed;
+            
+            const summaryDiv = document.getElementById('summary');
+            const summaryText = document.getElementById('summaryText');
+            
+            summaryText.textContent = `共 ${total} 项测试，${passed} 通过，${failed} 失败`;
+            summaryDiv.style.display = 'block';
+        }
+
+        async function waitForIframe() {
+            return new Promise(resolve => {
+                const iframe = document.getElementById('appFrame');
+                if (iframe.contentDocument.readyState === 'complete') {
+                    resolve();
+                } else {
+                    iframe.onload = () => resolve();
+                }
+            });
+        }
+
+        async function runAllTests() {
+            clearResults();
+            
+            const iframe = document.getElementById('appFrame');
+            await waitForIframe();
+            
+            // 重置应用状态
+            iframe.contentDocument.getElementById('resetBtn').click();
+            await new Promise(r => setTimeout(r, 100));
+
+            try {
+                // 测试1：初始状态检查 - 二级标签应该隐藏
+                const subNavContainer = iframe.contentDocument.getElementById('subNavContainer');
+                const initiallyHidden = subNavContainer.style.display === 'none';
+                addResult('测试1：初始状态', initiallyHidden, 
+                    initiallyHidden ? '二级标签容器初始隐藏' : '二级标签容器未隐藏');
+
+                // 测试2：点击第一场调研，应该显示标签
+                const firstCard = iframe.contentDocument.querySelector('.summary-card[data-session-id="S-001"]');
+                if (firstCard) {
+                    firstCard.click();
+                    await new Promise(r => setTimeout(r, 200));
+                    
+                    const subNavVisible = subNavContainer.style.display !== 'none';
+                    const hasOneTab = iframe.contentDocument.querySelectorAll('.sub-nav-item').length === 1;
+                    const tabHasCloseButton = iframe.contentDocument.querySelector('.sub-nav-close') !== null;
+                    
+                    addResult('测试2：打开第一场调研', subNavVisible && hasOneTab && tabHasCloseButton,
+                        `二级标签显示: ${subNavVisible}, 有1个标签: ${hasOneTab}, 有关闭按钮: ${tabHasCloseButton}`);
+                } else {
+                    addResult('测试2：打开第一场调研', false, '找不到第一场调研卡片');
+                }
+
+                // 测试3：点击第二场调研，应该新增标签
+                const secondCard = iframe.contentDocument.querySelector('.summary-card[data-session-id="S-002"]');
+                if (secondCard) {
+                    secondCard.click();
+                    await new Promise(r => setTimeout(r, 200));
+                    
+                    const tabCount = iframe.contentDocument.querySelectorAll('.sub-nav-item').length;
+                    const hasTwoTabs = tabCount === 2;
+                    
+                    addResult('测试3：打开第二场调研', hasTwoTabs,
+                        `标签数量: ${tabCount} (期望: 2)`);
+                } else {
+                    addResult('测试3：打开第二场调研', false, '找不到第二场调研卡片');
+                }
+
+                // 测试4：点击第三场调研，应该有3个标签
+                const thirdCard = iframe.contentDocument.querySelector('.summary-card[data-session-id="S-003"]');
+                if (thirdCard) {
+                    thirdCard.click();
+                    await new Promise(r => setTimeout(r, 200));
+                    
+                    const tabCount = iframe.contentDocument.querySelectorAll('.sub-nav-item').length;
+                    const hasThreeTabs = tabCount === 3;
+                    
+                    addResult('测试4：打开第三场调研', hasThreeTabs,
+                        `标签数量: ${tabCount} (期望: 3)`);
+                } else {
+                    addResult('测试4：打开第三场调研', false, '找不到第三场调研卡片');
+                }
+
+                // 测试5：切换到其他导航项，标签应该保持显示
+                const personaNav = iframe.contentDocument.querySelector('.nav-item[data-view="persona"]');
+                if (personaNav) {
+                    personaNav.click();
+                    await new Promise(r => setTimeout(r, 200));
+                    
+                    const stillVisible = subNavContainer.style.display !== 'none';
+                    const tabCount = iframe.contentDocument.querySelectorAll('.sub-nav-item').length;
+                    
+                    addResult('测试5：切换导航项标签保持', stillVisible && tabCount === 3,
+                        `标签可见: ${stillVisible}, 标签数量: ${tabCount} (期望: 3)`);
+                    
+                    // 回到用户调研
+                    const overviewNav = iframe.contentDocument.querySelector('.nav-item[data-view="overview"]');
+                    if (overviewNav) {
+                        overviewNav.click();
+                        await new Promise(r => setTimeout(r, 200));
+                    }
+                } else {
+                    addResult('测试5：切换导航项标签保持', false, '找不到用户画像导航项');
+                }
+
+                // 测试6：关闭中间的标签（S-002）
+                const closeButtons = iframe.contentDocument.querySelectorAll('.sub-nav-close');
+                if (closeButtons.length >= 3) {
+                    // 关闭第二个标签（S-002）
+                    closeButtons[1].click();
+                    await new Promise(r => setTimeout(r, 200));
+                    
+                    const tabCount = iframe.contentDocument.querySelectorAll('.sub-nav-item').length;
+                    const hasTwoTabsAfterClose = tabCount === 2;
+                    
+                    // 检查S-002是否被移除
+                    const remainingTabs = Array.from(iframe.contentDocument.querySelectorAll('.sub-nav-item'))
+                        .map(btn => btn.dataset.session);
+                    const s002Removed = !remainingTabs.includes('S-002');
+                    
+                    addResult('测试6：关闭中间标签', hasTwoTabsAfterClose && s002Removed,
+                        `标签数量: ${tabCount} (期望: 2), S-002已移除: ${s002Removed}, 剩余: ${remainingTabs.join(', ')}`);
+                } else {
+                    addResult('测试6：关闭中间标签', false, `关闭按钮数量: ${closeButtons.length} (期望: >=3)`);
+                }
+
+                // 测试7：点击右上角关闭按钮
+                const closeSessionBtn = iframe.contentDocument.getElementById('closeSessionBtn');
+                if (closeSessionBtn && !closeSessionBtn.classList.contains('hidden')) {
+                    closeSessionBtn.click();
+                    await new Promise(r => setTimeout(r, 200));
+                    
+                    const tabCount = iframe.contentDocument.querySelectorAll('.sub-nav-item').length;
+                    const reducedByOne = tabCount === 1;
+                    
+                    addResult('测试7：右上角关闭按钮', reducedByOne,
+                        `关闭后标签数量: ${tabCount} (期望: 1)`);
+                } else {
+                    addResult('测试7：右上角关闭按钮', false, '关闭按钮不存在或已隐藏');
+                }
+
+                // 测试8：关闭最后一个标签，应该返回主页
+                const lastCloseBtn = iframe.contentDocument.querySelector('.sub-nav-close');
+                if (lastCloseBtn) {
+                    lastCloseBtn.click();
+                    await new Promise(r => setTimeout(r, 200));
+                    
+                    const subNavHidden = subNavContainer.style.display === 'none';
+                    const overviewActive = iframe.contentDocument.querySelector('.nav-item[data-view="overview"]').classList.contains('active');
+                    
+                    addResult('测试8：关闭最后标签返回主页', subNavHidden && overviewActive,
+                        `二级标签隐藏: ${subNavHidden}, 概览页激活: ${overviewActive}`);
+                } else {
+                    addResult('测试8：关闭最后标签返回主页', false, '找不到关闭按钮');
+                }
+
+                // 测试9：重置功能清除所有标签
+                // 先打开两个标签
+                const card1 = iframe.contentDocument.querySelector('.summary-card[data-session-id="S-001"]');
+                const card2 = iframe.contentDocument.querySelector('.summary-card[data-session-id="S-002"]');
+                if (card1 && card2) {
+                    card1.click();
+                    await new Promise(r => setTimeout(r, 100));
+                    card2.click();
+                    await new Promise(r => setTimeout(r, 100));
+                    
+                    // 点击重置
+                    iframe.contentDocument.getElementById('resetBtn').click();
+                    await new Promise(r => setTimeout(r, 200));
+                    
+                    const afterResetHidden = subNavContainer.style.display === 'none';
+                    const tabCountAfterReset = iframe.contentDocument.querySelectorAll('.sub-nav-item').length;
+                    
+                    addResult('测试9：重置清除所有标签', afterResetHidden && tabCountAfterReset === 0,
+                        `重置后隐藏: ${afterResetHidden}, 标签数量: ${tabCountAfterReset} (期望: 0)`);
+                } else {
+                    addResult('测试9：重置清除所有标签', false, '找不到调研卡片');
+                }
+
+                // 测试10：标签切换功能
+                const c1 = iframe.contentDocument.querySelector('.summary-card[data-session-id="S-001"]');
+                const c2 = iframe.contentDocument.querySelector('.summary-card[data-session-id="S-002"]');
+                const c3 = iframe.contentDocument.querySelector('.summary-card[data-session-id="S-003"]');
+                
+                if (c1 && c2 && c3) {
+                    c1.click();
+                    await new Promise(r => setTimeout(r, 100));
+                    c2.click();
+                    await new Promise(r => setTimeout(r, 100));
+                    c3.click();
+                    await new Promise(r => setTimeout(r, 200));
+                    
+                    // 点击第一个标签切换
+                    const tabs = iframe.contentDocument.querySelectorAll('.sub-nav-item');
+                    if (tabs.length >= 3) {
+                        tabs[0].click();
+                        await new Promise(r => setTimeout(r, 200));
+                        
+                        const firstTabActive = tabs[0].classList.contains('active');
+                        const titleUpdated = iframe.contentDocument.getElementById('researchTitle').textContent.includes('S-001');
+                        
+                        addResult('测试10：标签切换功能', firstTabActive && titleUpdated,
+                            `第一个标签激活: ${firstTabActive}, 标题包含S-001: ${titleUpdated}`);
+                    } else {
+                        addResult('测试10：标签切换功能', false, `标签数量不足: ${tabs.length}`);
+                    }
+                } else {
+                    addResult('测试10：标签切换功能', false, '找不到调研卡片');
+                }
+
+            } catch (error) {
+                addResult('测试执行错误', false, `错误: ${error.message}`);
+                console.error(error);
+            }
+
+            showSummary();
+        }
+
+        // 页面加载完成后自动运行测试
+        window.addEventListener('load', () => {
+            setTimeout(runAllTests, 1000);
+        });
+    </script>
+</body>
+</html>

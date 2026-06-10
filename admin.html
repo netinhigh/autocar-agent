@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>管理后台 - 汽车产品营销Agent平台</title>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="supabase-config.js"></script>
+  <script src="auth.js"></script>
+  <link rel="stylesheet" href="admin.css">
+</head>
+<body>
+  <!-- 加载遮罩 -->
+  <div class="loading-overlay" id="loadingOverlay">
+    <div class="loading-spinner"></div>
+    <p>正在验证管理员身份...</p>
+  </div>
+
+  <!-- 顶部导航 -->
+  <header class="admin-header" id="adminHeader" style="display:none;">
+    <div class="header-left">
+      <div class="brand-icon">🔧</div>
+      <span class="brand-title">管理后台</span>
+    </div>
+    <div class="header-right">
+      <span class="admin-info" id="adminInfo">--</span>
+      <a href="index.html" class="btn-nav">返回前台</a>
+      <button class="btn-logout" onclick="handleLogout()">退出</button>
+    </div>
+  </header>
+
+  <!-- 主体布局 -->
+  <div class="admin-body" id="adminBody" style="display:none;">
+    <!-- 统计卡片 -->
+    <div class="stats-row" id="statsRow">
+      <div class="stat-card">
+        <div class="stat-label">总用户数</div>
+        <div class="stat-value" id="statTotalUsers">--</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">活跃用户</div>
+        <div class="stat-value" id="statActiveUsers">--</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">今日活跃</div>
+        <div class="stat-value" id="statTodayActive">--</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">总操作次数</div>
+        <div class="stat-value" id="statTotalActions">--</div>
+      </div>
+    </div>
+
+    <!-- Tab 切换 -->
+    <div class="tabs">
+      <button class="tab active" data-tab="users" onclick="switchTab('users')">👥 用户管理</button>
+      <button class="tab" data-tab="logs" onclick="switchTab('logs')">📋 使用日志</button>
+      <button class="tab" data-tab="data" onclick="switchTab('data')">📊 用户数据</button>
+    </div>
+
+    <!-- Tab: 用户管理 -->
+    <div class="tab-content active" id="tab-users">
+      <div class="panel-header">
+        <h3>用户列表</h3>
+        <button class="btn-refresh" onclick="loadUsers()">🔄 刷新</button>
+      </div>
+      <div class="table-wrapper">
+        <table class="data-table" id="usersTable">
+          <thead>
+            <tr>
+              <th>用户名</th>
+              <th>邮箱</th>
+              <th>角色</th>
+              <th>状态</th>
+              <th>最后登录</th>
+              <th>创建时间</th>
+              <th>操作</th>
+            </tr>
+          </thead>
+          <tbody id="usersTableBody">
+            <tr><td colspan="7" class="empty-cell">加载中...</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- Tab: 使用日志 -->
+    <div class="tab-content" id="tab-logs">
+      <div class="panel-header">
+        <h3>最近操作记录</h3>
+        <button class="btn-refresh" onclick="loadLogs()">🔄 刷新</button>
+      </div>
+      <div class="table-wrapper">
+        <table class="data-table" id="logsTable">
+          <thead>
+            <tr>
+              <th>用户</th>
+              <th>操作</th>
+              <th>页面</th>
+              <th>时间</th>
+              <th>详情</th>
+            </tr>
+          </thead>
+          <tbody id="logsTableBody">
+            <tr><td colspan="5" class="empty-cell">加载中...</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- Tab: 用户数据 -->
+    <div class="tab-content" id="tab-data">
+      <div class="panel-header">
+        <h3>选择用户查看数据</h3>
+        <div class="user-select-row">
+          <select id="dataUserSelect" onchange="loadUserDataDetail()">
+            <option value="">-- 选择用户 --</option>
+          </select>
+          <button class="btn-refresh" onclick="loadUserDataDetail()">🔄 加载</button>
+        </div>
+      </div>
+      <div id="dataDetailContainer" class="data-detail">
+        <p class="empty-hint">请选择用户查看其存储的数据</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- Toast -->
+  <div class="toast" id="toast" style="display:none;"></div>
+
+  <script src="admin.js"></script>
+</body>
+</html>

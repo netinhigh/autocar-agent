@@ -1,0 +1,284 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>汽车产品营销Agent平台</title>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="supabase-config.js"></script>
+  <script src="auth.js"></script>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif;
+      background: linear-gradient(135deg, #0a1628 0%, #1a2a4a 50%, #0d1f3c 100%);
+      min-height: 100vh;
+      color: #e0e6f0;
+    }
+
+    /* 顶部导航栏 */
+    .topbar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 14px 32px;
+      background: rgba(255,255,255,0.03);
+      border-bottom: 1px solid rgba(255,255,255,0.06);
+      backdrop-filter: blur(10px);
+      position: sticky;
+      top: 0;
+      z-index: 100;
+    }
+    .topbar .brand-mini {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .topbar .brand-logo {
+      width: 36px; height: 36px;
+      background: linear-gradient(135deg, #4facfe, #00f2fe);
+      border-radius: 10px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 18px;
+    }
+    .topbar .brand-name {
+      font-size: 15px;
+      font-weight: 600;
+      color: #e0e6f0;
+    }
+    .topbar .user-area {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+    }
+    .topbar .user-info {
+      font-size: 13px;
+      color: #8899aa;
+    }
+    .topbar .user-info strong {
+      color: #4facfe;
+    }
+    .topbar .btn-logout {
+      padding: 7px 18px;
+      background: rgba(255,77,79,0.15);
+      border: 1px solid rgba(255,77,79,0.2);
+      border-radius: 8px;
+      color: #ff7875;
+      font-size: 13px;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    .topbar .btn-logout:hover {
+      background: rgba(255,77,79,0.25);
+    }
+
+    /* 主内容 */
+    .main-container {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      min-height: calc(100vh - 67px);
+      padding: 40px;
+    }
+
+    .container {
+      text-align: center;
+      max-width: 760px;
+    }
+    .logo {
+      width: 80px;
+      height: 80px;
+      margin: 0 auto 30px;
+      background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
+      border-radius: 20px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 36px;
+      box-shadow: 0 8px 32px rgba(79, 172, 254, 0.3);
+    }
+    h1 {
+      font-size: 32px;
+      font-weight: 700;
+      margin-bottom: 8px;
+      background: linear-gradient(135deg, #e0e6f0 0%, #4facfe 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+    .welcome-msg {
+      color: #8899aa;
+      font-size: 15px;
+      margin-bottom: 40px;
+      line-height: 1.6;
+    }
+    .welcome-msg strong {
+      color: #4facfe;
+    }
+    .cards {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 24px;
+    }
+    .card {
+      background: rgba(255,255,255,0.05);
+      border: 1px solid rgba(255,255,255,0.1);
+      border-radius: 16px;
+      padding: 36px 28px;
+      text-decoration: none;
+      color: #e0e6f0;
+      transition: all 0.3s ease;
+      backdrop-filter: blur(10px);
+      cursor: pointer;
+    }
+    .card:hover {
+      background: rgba(255,255,255,0.1);
+      border-color: rgba(79, 172, 254, 0.4);
+      transform: translateY(-4px);
+      box-shadow: 0 12px 40px rgba(0,0,0,0.3);
+    }
+    .card .icon {
+      font-size: 40px;
+      margin-bottom: 16px;
+    }
+    .card h3 {
+      font-size: 20px;
+      margin-bottom: 10px;
+      color: #4facfe;
+    }
+    .card p {
+      font-size: 14px;
+      color: #8899aa;
+      line-height: 1.5;
+    }
+
+    /* 加载状态 */
+    .loading-overlay {
+      position: fixed;
+      top: 0; left: 0; right: 0; bottom: 0;
+      background: rgba(10,22,40,0.9);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 999;
+    }
+    .loading-spinner {
+      width: 40px; height: 40px;
+      border: 3px solid rgba(255,255,255,0.1);
+      border-top-color: #4facfe;
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    .footer {
+      margin-top: 50px;
+      color: #556;
+      font-size: 12px;
+    }
+    @media (max-width: 600px) {
+      .cards { grid-template-columns: 1fr; }
+      .container { padding: 20px; }
+      .topbar { padding: 12px 16px; }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- 加载遮罩 -->
+  <div class="loading-overlay" id="loadingOverlay">
+    <div class="loading-spinner"></div>
+  </div>
+
+  <!-- 顶部导航 -->
+  <div class="topbar" id="topbar" style="display:none;">
+    <div class="brand-mini">
+      <div class="brand-logo">🚗</div>
+      <span class="brand-name">汽车产品营销 Agent 平台</span>
+    </div>
+    <div class="user-area">
+      <span class="user-info">欢迎，<strong id="displayName">--</strong></span>
+      <button class="btn-logout" onclick="handleLogout()">退出登录</button>
+    </div>
+  </div>
+
+  <!-- 主内容 -->
+  <div class="main-container">
+    <div class="container" id="mainContent" style="display:none;">
+      <div class="logo">🚗</div>
+      <h1>汽车产品营销 Agent 平台</h1>
+      <p class="welcome-msg">
+        AI 驱动的用户洞察与虚拟消费者仿真系统<br>
+        助力汽车产品精准营销决策
+      </p>
+
+      <div class="cards">
+        <a href="用户洞察Agent/index.html" class="card">
+          <div class="icon">📊</div>
+          <h3>用户洞察 Agent</h3>
+          <p>定性调研管理、用户样本库、<br>多维数据分析与洞察报告</p>
+        </a>
+        <a href="虚拟消费者Agent/index.html" class="card">
+          <div class="icon">👥</div>
+          <h3>虚拟消费者 Agent</h3>
+          <p>基于真实用户数据生成数字分身、<br>消费者仿真与智能交互</p>
+        </a>
+      </div>
+
+      <div class="footer">
+        © 2026 汽车产品营销 Agent 平台 · Powered by AI
+      </div>
+    </div>
+  </div>
+
+  <script>
+    (async function init() {
+      // Supabase 未配置 → 开发模式，直接展示
+      if (!window.SUPABASE_READY) {
+        document.getElementById('loadingOverlay').style.display = 'none';
+        document.getElementById('topbar').style.display = 'flex';
+        document.getElementById('mainContent').style.display = 'block';
+        document.getElementById('displayName').textContent = '访客（开发模式）';
+        return;
+      }
+
+      initSupabase();
+
+      // 检查登录状态
+      try {
+        var isLoggedIn = await window.Auth.isLoggedIn();
+        if (!isLoggedIn) {
+          window.location.href = 'login.html';
+          return;
+        }
+
+        // 获取用户信息
+        var profile = await window.Auth.getUserProfile();
+        if (profile) {
+          document.getElementById('displayName').textContent = profile.name || profile.email || '用户';
+        }
+
+        // 记录页面访问
+        await window.Auth._logAction(profile ? profile.id : 'unknown', 'page_view', 'home', {});
+
+        // 显示内容
+        document.getElementById('loadingOverlay').style.display = 'none';
+        document.getElementById('topbar').style.display = 'flex';
+        document.getElementById('mainContent').style.display = 'block';
+
+      } catch (e) {
+        console.error('[Index] 初始化失败:', e);
+        document.getElementById('loadingOverlay').style.display = 'none';
+        document.getElementById('topbar').style.display = 'flex';
+        document.getElementById('mainContent').style.display = 'block';
+        document.getElementById('displayName').textContent = '用户';
+      }
+    })();
+
+    async function handleLogout() {
+      if (confirm('确定要退出登录吗？')) {
+        await window.Auth.logout();
+      }
+    }
+  </script>
+</body>
+</html>
