@@ -45,6 +45,30 @@
         if (window.SharedDataStore) {
           await SharedDataStore.loadFromCloud();
         }
+        // ★ 从云端恢复用户洞察数据（调研场次 + 用户样本）
+        //    必须在 app.js 加载前执行，否则 app.js 会用空数组覆盖
+        if (window.SUPABASE_READY && window.Auth) {
+          try {
+            var insightData = await window.Auth.loadUserData('insight_data');
+            if (insightData) {
+              window._restoredInsightData = insightData;
+              console.log('[守卫] 已加载云端洞察数据：' + 
+                (insightData.researchSessions ? insightData.researchSessions.length : 0) + ' 个调研场次，' + 
+                (insightData.userSamples ? insightData.userSamples.length : 0) + ' 个用户样本');
+            } else {
+              // 尝试从 localStorage 备份恢复
+              try {
+                var backup = localStorage.getItem('vc_insight_backup');
+                if (backup) {
+                  window._restoredInsightData = JSON.parse(backup);
+                  console.log('[守卫] 从本地备份恢复了洞察数据');
+                }
+              } catch(e2) {}
+            }
+          } catch(e) {
+            console.warn('[守卫] 加载云端洞察数据失败:', e.message);
+          }
+        }
       })();
     </script>
 

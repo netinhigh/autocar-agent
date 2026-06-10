@@ -60,7 +60,28 @@ const strategies = [];
 const knowledgeItems = [];
 
 
-let userSamples = [];
+// ★ 从云端恢复数据（由 index.html 守卫在 app.js 加载前预加载）
+//    守卫在 <head> 中异步加载，到此处（<body> 底部）通常已完成
+//    如果尚未完成，app.js 启动后延迟加载
+var _restored = window._restoredInsightData;
+let userSamples = (_restored && _restored.userSamples) ? _restored.userSamples : [];
+if (_restored) console.log('[数据恢复] userSamples: ' + userSamples.length + ' 条');
+
+// 如果守卫尚未完成数据加载，延迟重试
+if (!_restored && window.SUPABASE_READY) {
+  setTimeout(function() {
+    if (window._restoredInsightData) {
+      var d = window._restoredInsightData;
+      userSamples = (d.userSamples) ? d.userSamples : [];
+      researchSessions = (d.researchSessions) ? d.researchSessions : [];
+      console.log('[延迟恢复] userSamples: ' + userSamples.length + ' 条, researchSessions: ' + researchSessions.length + ' 场');
+      // 恢复后刷新 UI
+      if (typeof renderSessionFilters === 'function') renderSessionFilters();
+      if (typeof renderSessions === 'function') renderSessions();
+      if (typeof renderAudienceAvatars === 'function') renderAudienceAvatars();
+    }
+  }, 500);
+}
 
 // ★ 获取已完成调研的用户样本（只返回所属调研状态为"已完成"的用户）
 function getCompletedUserSamples() {
@@ -116,7 +137,8 @@ window.triggerManualSync = function() {
   alert('已同步 ' + completedCount + ' 个已完成调研的用户样本到共享数据桥！\n虚拟消费者平台将自动检测并生成对应数字分身。');
 };
 
-const researchSessions = [];
+let researchSessions = (_restored && _restored.researchSessions) ? _restored.researchSessions : [];
+if (_restored) console.log('[数据恢复] researchSessions: ' + researchSessions.length + ' 场');
 
 
 let transcriptIndex = 0;
@@ -678,6 +700,7 @@ function handleNewSessionSubmit(e) {
   hideNewSessionModal();
   renderSessionFilters();
   renderSessions();
+  triggerInsightSave();
   showToast('调研 "' + newSession.id + ' ' + product + '" 已创建', 'success');
 }
 
@@ -858,6 +881,7 @@ function startPendingSession() {
   currentSession.audienceList = [...currentAudienceList];
   // ★ 自动同步：调研开始后，将用户样本推送到共享数据桥
   autoSyncUserSamplesToBridge();
+  triggerInsightSave();
   els.startSessionBanner.classList.add("hidden");
   setAvailableStages(["prepare", "live", "report"], "live");
   updateContextVisibility();
@@ -1802,10 +1826,65 @@ function removeQuestion(idx) {
 
 // ===== 定量调研模块数据结束 =====
 
-// ===== 用户样本库数据（已清空）=====
-// 用户登录后可通过调研功能自行创建和维护用户样本
-userSamples = [];
-console.log('[数据清空] 用户样本数据已重置，共 0 条');
+// ===== 用户数据持久化 =====
+
+// 保存用户洞察数据到 Supabase 云端
+function saveInsightDataToCloud() {
+  if (!window.SUPABASE_READY || !window.Auth) return;
+  try {
+    window.Auth.saveUserData('insight_data', {
+      researchSessions: researchSessions,
+      userSamples: userSamples
+    });
+  } catch(e) {
+    console.warn('[Insight] 云端保存失败:', e.message);
+  }
+}
+
+// 防抖版保存（避免频繁请求）
+var _insightSaveTimer = null;
+function saveInsightDataDebounced() {
+  if (_insightSaveTimer) clearTimeout(_insightSaveTimer);
+  _insightSaveTimer = setTimeout(saveInsightDataToCloud, 2000);
+}
+
+// 从 Supabase 云端加载用户洞察数据
+function loadInsightDataFromCloud() {
+  return new Promise(function(resolve) {
+    if (!window.SUPABASE_READY || !window.Auth) {
+      console.log('[Insight] Supabase 未就绪，使用本地初始数据');
+      resolve(false);
+      return;
+    }
+    window.Auth.loadUserData('insight_data').then(function(data) {
+      if (data) {
+        researchSessions = data.researchSessions || [];
+        userSamples = data.userSamples || [];
+        console.log('[Insight] 已从云端恢复数据：' + researchSessions.length + ' 个调研场次，' + userSamples.length + ' 个用户样本');
+        resolve(true);
+      } else {
+        console.log('[Insight] 云端无历史数据，使用初始空数据');
+        resolve(false);
+      }
+    }).catch(function(e) {
+      console.warn('[Insight] 云端加载失败:', e.message);
+      resolve(false);
+    });
+  });
+}
+
+// 触发数据保存（在关键操作后调用）
+function triggerInsightSave() {
+  saveInsightDataDebounced();
+  // 同时立即保存一份到 localStorage 作为备份
+  try {
+    localStorage.setItem('vc_insight_backup', JSON.stringify({
+      researchSessions: researchSessions,
+      userSamples: userSamples,
+      timestamp: Date.now()
+    }));
+  } catch(e) {}
+}
 
 // ===== 调研对象详细信息功能 =====
 function getAudienceDetailsFromForm() {
@@ -2514,6 +2593,7 @@ function editUser(index) {
 function deleteUser(index) {
   if (confirm('确定要删除这个用户吗？')) {
     currentAudienceList.splice(index, 1);
+    triggerInsightSave();
     renderUserList();
     renderAudienceAvatars();
   }
@@ -2554,6 +2634,7 @@ function saveUser() {
     userSamples.push(Object.assign({}, userData, { sessionId: currentSession ? currentSession.id : '' }));
   }
   autoSyncUserSamplesToBridge();
+  triggerInsightSave();
 
   renderUserList();
   renderAudienceAvatars();

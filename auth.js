@@ -68,9 +68,15 @@ window.Auth = {
       await this._logAction(user.id, 'logout', 'login', {});
     }
     
-    // 清除本地数据
+    // ★ 登出时不清除云端数据，仅清除本地 localStorage 中的共享数据
+    //    用户数据已保存在 Supabase 云端，下次登录会自动恢复
     if (window.SharedDataStore) {
-      window.SharedDataStore.clear();
+      try {
+        localStorage.removeItem('vc_ui_shared_data');
+        localStorage.removeItem('vc_ui_data_version');
+        localStorage.removeItem('vc_insight_backup');
+        console.log('[Auth] 已清除本地缓存，云端数据保留');
+      } catch(e) {}
     }
     
     await client.auth.signOut();
