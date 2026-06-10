@@ -159,9 +159,15 @@
                 <p class="eyebrow">Research command center</p>
                 <h2>调研场次汇总</h2>
               </div>
-              <div class="summary-count">
-                <strong id="sessionCount">0</strong>
-                <span>场调研</span>
+              <div style="display:flex;align-items:center;gap:18px;">
+                <button class="new-session-btn" id="newSessionBtn">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                  新建调研
+                </button>
+                <div class="summary-count">
+                  <strong id="sessionCount">0</strong>
+                  <span>场调研</span>
+                </div>
               </div>
             </div>
 
@@ -1055,5 +1061,80 @@
       an();
     })();
   </script>
+
+  <!-- ========== 新建调研弹窗 ========== -->
+  <div class="modal-overlay hidden" id="newSessionModal">
+    <div class="modal-panel">
+      <div class="modal-header">
+        <h3>
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--cyan)" stroke-width="2.5" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+          新建定性调研
+        </h3>
+        <button class="modal-close-btn" id="closeModalBtn">&times;</button>
+      </div>
+      <form id="newSessionForm" class="modal-body">
+        <div class="form-row two-col">
+          <label>
+            <span>调研产品</span>
+            <input type="text" id="newProduct" placeholder="例：本品牌A车型" required>
+          </label>
+          <label>
+            <span>调研类型</span>
+            <select id="newType" required>
+              <option value="">请选择类型</option>
+              <option value="一对一深访">一对一深访</option>
+              <option value="焦点小组">焦点小组</option>
+              <option value="试驾回访">试驾回访</option>
+              <option value="竞品车主访谈">竞品车主访谈</option>
+              <option value="概念测试">概念测试</option>
+              <option value="销售线索回访">销售线索回访</option>
+            </select>
+          </label>
+        </div>
+        <label>
+          <span>调研目的</span>
+          <textarea id="newGoal" rows="2" placeholder="例：了解年轻家庭对纯电SUV续航、空间和智能座舱的真实购买顾虑。" required></textarea>
+        </label>
+        <div class="form-row two-col">
+          <label>
+            <span>调研对象</span>
+            <input type="text" id="newAudience" placeholder="例：25-35岁年轻家庭增换购用户" required>
+          </label>
+          <label>
+            <span>开展时间</span>
+            <input type="datetime-local" id="newTime" required>
+          </label>
+        </div>
+        <div class="form-row two-col">
+          <label>
+            <span>主持团队</span>
+            <input type="text" id="newHost" placeholder="例：用户研究组 / 华东区">
+          </label>
+          <label>
+            <span>访谈时长</span>
+            <select id="newDuration">
+              <option value="30分钟">30分钟</option>
+              <option value="45分钟">45分钟</option>
+              <option value="60分钟" selected>60分钟</option>
+              <option value="75分钟">75分钟</option>
+              <option value="90分钟">90分钟</option>
+              <option value="120分钟">120分钟</option>
+            </select>
+          </label>
+        </div>
+        <label>
+          <span>关键信号</span>
+          <input type="text" id="newSignals" placeholder="例：冬季续航、亲子空间、后排娱乐、补能规划">
+        </label>
+        <div class="modal-actions">
+          <button type="button" class="ghost-btn" id="cancelNewSessionBtn">取消</button>
+          <button type="submit" class="primary-btn" id="submitNewSessionBtn">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+            创建调研
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
 </body>
 </html>

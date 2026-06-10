@@ -186,7 +186,12 @@ const els = {
   reportVideo: document.getElementById("reportVideo"),
   reportAudio: document.getElementById("reportAudio"),
   playbackStatus: document.getElementById("playbackStatus"),
-  closeSessionBtn: document.getElementById("closeSessionBtn")
+  closeSessionBtn: document.getElementById("closeSessionBtn"),
+  newSessionBtn: document.getElementById("newSessionBtn"),
+  newSessionModal: document.getElementById("newSessionModal"),
+  closeModalBtn: document.getElementById("closeModalBtn"),
+  cancelNewSessionBtn: document.getElementById("cancelNewSessionBtn"),
+  newSessionForm: document.getElementById("newSessionForm")
 };
 
 function renderOutline(items = outlineDefaults) {
@@ -448,6 +453,63 @@ function renderSessionFilters() {
   fillSelect(els.typeFilter, [...new Set(researchSessions.map((item) => item.type))], "全部类型");
   fillSelect(els.sessionFilter, researchSessions.map((item) => item.id), "全部场次");
 }
+
+// ===== 新建调研 =====
+function generateSessionId() {
+  const maxNum = researchSessions.reduce((max, s) => {
+    const match = s.id && s.id.match(/^S-(\d+)$/);
+    if (match) { const n = parseInt(match[1], 10); return n > max ? n : max; }
+    return max;
+  }, 0);
+  return 'S-' + String(maxNum + 1).padStart(3, '0');
+}
+
+function showNewSessionModal() {
+  // 预填默认时间
+  const now = new Date();
+  const tzOffset = now.getTimezoneOffset();
+  const local = new Date(now.getTime() - tzOffset * 60000);
+  document.getElementById('newTime').value = local.toISOString().slice(0, 16);
+  els.newSessionModal.classList.remove('hidden');
+}
+
+function hideNewSessionModal() {
+  els.newSessionModal.classList.add('hidden');
+  els.newSessionForm.reset();
+}
+
+function handleNewSessionSubmit(e) {
+  e.preventDefault();
+  const product = document.getElementById('newProduct').value.trim();
+  const type = document.getElementById('newType').value;
+  const goal = document.getElementById('newGoal').value.trim();
+  const audience = document.getElementById('newAudience').value.trim();
+  const time = document.getElementById('newTime').value.replace('T', ' ');
+  const host = document.getElementById('newHost').value.trim() || '用户研究组';
+  const duration = document.getElementById('newDuration').value;
+  const signals = document.getElementById('newSignals').value.trim() || '用户需求';
+
+  const newSession = {
+    id: generateSessionId(),
+    product: product,
+    type: type,
+    status: '待开始',
+    time: time,
+    goal: goal,
+    audience: audience,
+    host: host,
+    duration: duration,
+    signals: signals
+  };
+
+  researchSessions.push(newSession);
+  hideNewSessionModal();
+  renderSessionFilters();
+  renderSessions();
+  showToast('调研 "' + newSession.id + ' ' + product + '" 已创建', 'success');
+}
+
+
 
 function getFilteredSessions() {
   return researchSessions.filter((item) => {
@@ -996,6 +1058,15 @@ document.getElementById("clearFiltersBtn").addEventListener("click", () => {
   els.sessionFilter.value = "";
   renderSessions();
 });
+
+// 新建调研弹窗事件
+els.newSessionBtn.addEventListener("click", showNewSessionModal);
+els.closeModalBtn.addEventListener("click", hideNewSessionModal);
+els.cancelNewSessionBtn.addEventListener("click", hideNewSessionModal);
+els.newSessionModal.addEventListener("click", function(e) {
+  if (e.target === els.newSessionModal) hideNewSessionModal();
+});
+els.newSessionForm.addEventListener("submit", handleNewSessionSubmit);
 
 renderSessionFilters();
 renderSessions();
