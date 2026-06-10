@@ -613,33 +613,39 @@ function loadUserSamplesFallback() {
       if (parsed.userSamples && parsed.userSamples.length > 0) {
         // ★ 过滤掉未完成调研的用户（用内嵌样本作为白名单）
         var embeddedSamples = getEmbeddedSamples();
-        var validIds = {};
-        for (var i = 0; i < embeddedSamples.length; i++) {
-          validIds[embeddedSamples[i].id] = true;
-        }
-        var filteredSamples = [];
-        var removedCount = 0;
-        for (var i = 0; i < parsed.userSamples.length; i++) {
-          if (validIds[parsed.userSamples[i].id]) {
-            filteredSamples.push(parsed.userSamples[i]);
-          } else {
-            removedCount++;
+        if (embeddedSamples.length === 0) {
+          // 内嵌样本已清空，残留数据全部清除
+          console.log('[兜底] 内嵌样本已清空，清除 ' + parsed.userSamples.length + ' 个残留用户样本');
+          SharedDataStore.clear();
+        } else {
+          var validIds = {};
+          for (var i = 0; i < embeddedSamples.length; i++) {
+            validIds[embeddedSamples[i].id] = true;
           }
-        }
-        if (removedCount > 0) {
-          console.log('[兜底] 过滤掉 ' + removedCount + ' 个未完成调研的用户（残留数据）');
-        }
-        
-        if (filteredSamples.length > 0) {
-          // 直接手动注入到 SharedDataStore（全量替换）
-          SharedDataStore.pushUserSamples(filteredSamples);
-          var samples = SharedDataStore.getUserSamples();
-          if (samples && samples.length > 0) {
-            var ver = SharedDataStore.getDataVersion();
-            performSync(samples, ver.dataVersion, ver.dtVersion);
-            showToast('已从 localStorage 恢复 ' + samples.length + ' 个用户样本！', 'success');
-            renderDashboard();
-            return;
+          var filteredSamples = [];
+          var removedCount = 0;
+          for (var i = 0; i < parsed.userSamples.length; i++) {
+            if (validIds[parsed.userSamples[i].id]) {
+              filteredSamples.push(parsed.userSamples[i]);
+            } else {
+              removedCount++;
+            }
+          }
+          if (removedCount > 0) {
+            console.log('[兜底] 过滤掉 ' + removedCount + ' 个未完成调研的用户（残留数据）');
+          }
+          
+          if (filteredSamples.length > 0) {
+            // 直接手动注入到 SharedDataStore（全量替换）
+            SharedDataStore.pushUserSamples(filteredSamples);
+            var samples = SharedDataStore.getUserSamples();
+            if (samples && samples.length > 0) {
+              var ver = SharedDataStore.getDataVersion();
+              performSync(samples, ver.dataVersion, ver.dtVersion);
+              showToast('已从 localStorage 恢复 ' + samples.length + ' 个用户样本！', 'success');
+              renderDashboard();
+              return;
+            }
           }
         }
       }
@@ -662,6 +668,15 @@ function loadEmbeddedUserSamples() {
   if (typeof SharedDataStore === 'undefined') {
     console.log('[兜底] SharedDataStore 不可用，直接构建数字分身');
     loadEmbeddedUserSamplesDirectly();
+    return;
+  }
+  
+  if (embeddedSamples.length === 0) {
+    // 内嵌样本已清空，强制清除残留数据
+    console.log('[兜底] 内嵌样本已清空，清除 SharedDataStore 残留数据');
+    SharedDataStore.clear();
+    digitalTwins = [];
+    renderDashboard();
     return;
   }
   
@@ -1497,37 +1512,52 @@ function initLoadFromSharedStore() {
     return;
   }
   
-  // ★ 用内嵌样本（已完成调研的24个用户）作为白名单，过滤掉可能残留在 localStorage 中的旧数据
+  // ★ 用内嵌样本作为白名单，过滤掉可能残留在 localStorage 中的旧数据
+  // 注意：当内嵌样本已清空（getEmbeddedSamples() 返回 []）时，说明所有数据应由用户自行创建，
+  // 残留的旧数据应全部清除。
   var embeddedSamples = getEmbeddedSamples();
-  var validIds = {};
-  for (var i = 0; i < embeddedSamples.length; i++) {
-    validIds[embeddedSamples[i].id] = true;
-  }
-  var filteredSamples = [];
-  var removedCount = 0;
-  for (var i = 0; i < userSamples.length; i++) {
-    if (validIds[userSamples[i].id]) {
-      filteredSamples.push(userSamples[i]);
-    } else {
-      removedCount++;
+  if (embeddedSamples.length === 0) {
+    // 内嵌样本已清空，强制清除 localStorage 中的残留数据
+    console.log('[初始化] 内嵌样本已清空，清除 ' + userSamples.length + ' 个残留用户样本');
+    SharedDataStore.clear();
+    userSamples = [];
+  } else {
+    var validIds = {};
+    for (var i = 0; i < embeddedSamples.length; i++) {
+      validIds[embeddedSamples[i].id] = true;
+    }
+    var filteredSamples = [];
+    var removedCount = 0;
+    for (var i = 0; i < userSamples.length; i++) {
+      if (validIds[userSamples[i].id]) {
+        filteredSamples.push(userSamples[i]);
+      } else {
+        removedCount++;
+      }
+    }
+    
+    if (removedCount > 0) {
+      console.log('[初始化] 过滤掉 ' + removedCount + ' 个未完成调研的用户（残留数据），剩余 ' + filteredSamples.length + ' 个');
+      SharedDataStore.pushUserSamples(filteredSamples);
+      userSamples = filteredSamples;
     }
   }
   
-  if (removedCount > 0) {
-    console.log('[初始化] 过滤掉 ' + removedCount + ' 个未完成调研的用户（残留数据），剩余 ' + filteredSamples.length + ' 个');
-    // 清理 SharedDataStore 中的残留数据
-    SharedDataStore.pushUserSamples(filteredSamples);
-    userSamples = filteredSamples;
+  if (userSamples.length > 0) {
+    console.log('[初始化] SharedDataStore 中有 ' + userSamples.length + ' 个用户样本，直接加载...');
+    var versionInfo = SharedDataStore.getDataVersion();
+    performSync(userSamples, versionInfo.dataVersion, versionInfo.dtVersion);
+    autoSyncState.lastDataVersion = versionInfo.dataVersion;
+    autoSyncState.lastDtVersion = versionInfo.dtVersion;
+  } else {
+    console.log('[初始化] 用户样本为空，跳过同步');
+    digitalTwins = [];
+    autoSyncState.lastDataVersion = 0;
+    autoSyncState.lastDtVersion = 0;
   }
-  
-  console.log('[初始化] SharedDataStore 中有 ' + userSamples.length + ' 个用户样本，直接加载...');
-  var versionInfo = SharedDataStore.getDataVersion();
-  performSync(userSamples, versionInfo.dataVersion, versionInfo.dtVersion);
   
   // 标记已完成首次同步
   autoSyncState.isFirstLoad = false;
-  autoSyncState.lastDataVersion = versionInfo.dataVersion;
-  autoSyncState.lastDtVersion = versionInfo.dtVersion;
 }
 
 // ★ 不依赖 SharedDataStore 的纯兜底加载（SharedDataStore 未定义时也能工作）
