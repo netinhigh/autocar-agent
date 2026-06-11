@@ -170,6 +170,26 @@ let recordedVideoChunks = [];      // 视频 Blob 片段
 let recordedAudioChunks = [];      // 音频 Blob 片段
 let recordingStartTime = null;     // 录制开始时间戳（毫秒）
 let recordingElapsedId = null;     // 录制计时器 interval ID
+let storageDirHandle = null;       // FileSystemDirectoryHandle（用户选择的存储目录）
+
+// ===== AI 实时分析状态 =====
+let aiEnabled = false;                // AI 分析总开关
+let aiConfig = {                      // LLM API 配置
+  provider: 'openai',
+  apiKey: '',
+  customUrl: '',
+  modelName: 'gpt-4o'
+};
+let speechRecognition = null;         // SpeechRecognition 实例
+let isSpeechListening = false;        // 是否正在监听语音
+let speechRestartTimer = null;        // 语音识别重启定时器
+let pendingAnalysisTexts = [];        // 待分析文本缓冲区
+let lastEmotionTexts = '';            // 上次已分析的文本（去重）
+let emotionHistory = [];              // 情绪历史记录
+let analysisIntervalId = null;        // 分析轮询定时器
+let faceCaptureIntervalId = null;     // 表情抓帧定时器
+let lastFaceBase64 = null;            // 上一帧截图 base64
+
 // 调研准备锁定状态
 let preparationLocked = false;  // 是否已锁定准备
 let lockPassword = '';          // 生成的数字密码
@@ -217,6 +237,8 @@ const els = {
   recordingTimer: document.getElementById("recordingTimer"),
   recordStatus: document.getElementById("recordStatus"),
   captureStatus: document.querySelector(".capture-status"),
+  selectStorageDirBtn: document.getElementById("selectStorageDirBtn"),
+  storagePath: document.getElementById("storagePath"),
   uploadedVideo: document.getElementById("uploadedVideo"),
   uploadFileName: document.getElementById("uploadFileName"),
   sessionGroups: document.getElementById("sessionGroups"),
@@ -268,7 +290,29 @@ const els = {
   productInput: document.getElementById("productInput"),
   durationInput: document.getElementById("durationInput"),
   editOutlineBtn: document.getElementById("editOutlineBtn"),
-  manageAudienceBtn: document.getElementById("manageAudienceBtn")
+  manageAudienceBtn: document.getElementById("manageAudienceBtn"),
+  // AI 实时分析元素
+  aiAnalysisPanel: document.getElementById("aiAnalysisPanel"),
+  aiToggleBtn: document.getElementById("aiToggleBtn"),
+  aiSettingsBtn: document.getElementById("aiSettingsBtn"),
+  aiSettingsBody: document.getElementById("aiSettingsBody"),
+  aiProvider: document.getElementById("aiProvider"),
+  aiApiKey: document.getElementById("aiApiKey"),
+  aiCustomUrl: document.getElementById("aiCustomUrl"),
+  aiCustomUrlLabel: document.getElementById("aiCustomUrlLabel"),
+  aiModelName: document.getElementById("aiModelName"),
+  aiSaveSettingsBtn: document.getElementById("aiSaveSettingsBtn"),
+  aiTestConnBtn: document.getElementById("aiTestConnBtn"),
+  aiTestResult: document.getElementById("aiTestResult"),
+  aiStatusDot: document.getElementById("aiStatusDot"),
+  asrStatus: document.getElementById("asrStatus"),
+  asrText: document.getElementById("asrText"),
+  emotionMain: document.getElementById("emotionMain"),
+  emotionPos: document.getElementById("emotionPos"),
+  emotionNeu: document.getElementById("emotionNeu"),
+  emotionNeg: document.getElementById("emotionNeg"),
+  expressionTag: document.getElementById("expressionTag"),
+  expressionDetail: document.getElementById("expressionDetail")
 };
 
 function renderOutline(items = outlineDefaults) {
@@ -1285,8 +1329,88 @@ function getExtensionFromMime(mime) {
   return 'webm';
 }
 
-// ★ 保存 Blob 到本地文件（触发浏览器下载）
-function saveFileToLocal(blob, filename) {
+// ========== 录像存储目录选择 ==========
+
+// ★ 让用户选择本地存储目录（File System Access API）
+async function selectStorageDir() {
+  try {
+    // 检查浏览器是否支持
+    if (!window.showDirectoryPicker) {
+      showToast('当前浏览器不支持目录选择，请使用 Chrome / Edge 最新版', 'warning');
+      return;
+    }
+
+    var handle = await window.showDirectoryPicker({ mode: 'readwrite' });
+    storageDirHandle = handle;
+    els.storagePath.textContent = '✓ ' + handle.name;
+    els.storagePath.title = handle.name;
+    showToast('录像将保存到「' + handle.name + '」', 'success');
+
+    // 持久化保存到 IndexedDB（按用户隔离）
+    await StorageEngine.save('_storage_dir_granted', true);
+    console.log('[存储目录] 已选择: ' + handle.name);
+  } catch (e) {
+    if (e.name === 'AbortError') return; // 用户取消
+    console.error('[存储目录] 选择失败:', e);
+    showToast('目录选择失败: ' + e.message, 'error');
+  }
+}
+
+// ★ 检查上次是否已授权过目录（页面加载时调用）
+async function restoreStorageDir() {
+  if (!window.showDirectoryPicker) return;
+  try {
+    var result = await StorageEngine.load('_storage_dir_granted');
+    if (result && result.data) {
+      // 之前已授权，引导用户重新选择（handle 无法跨会话持久化，但用户可能需要重新绑定）
+      els.selectStorageDirBtn.textContent = '重新选择存储目录';
+      // 不自动弹窗，等用户自己点
+    }
+  } catch (e) {}
+}
+
+// ★ 将 Blob 写入用户选择的目录
+async function writeFileToDir(blob, filename) {
+  if (!storageDirHandle) return false;
+
+  try {
+    // 验证权限仍然有效
+    var permission = await storageDirHandle.queryPermission({ mode: 'readwrite' });
+    if (permission !== 'granted') {
+      permission = await storageDirHandle.requestPermission({ mode: 'readwrite' });
+      if (permission !== 'granted') {
+        console.warn('[存储目录] 权限已过期，回退到下载方式');
+        storageDirHandle = null;
+        els.storagePath.textContent = '⚠ 权限过期，请重新选择';
+        return false;
+      }
+    }
+
+    var fileHandle = await storageDirHandle.getFileHandle(filename, { create: true });
+    var writable = await fileHandle.createWritable();
+    await writable.write(blob);
+    await writable.close();
+
+    console.log('[存储目录] 文件已写入: ' + filename + ' (' + (blob.size / 1024 / 1024).toFixed(2) + 'MB)');
+    return true;
+  } catch (e) {
+    console.error('[存储目录] 写入失败:', e);
+    return false;
+  }
+}
+
+// ★ 保存 Blob 到本地文件（优先写入用户选择目录，否则触发浏览器下载）
+async function saveFileToLocal(blob, filename) {
+  // 如果用户选择了存储目录，优先写入
+  if (storageDirHandle) {
+    var written = await writeFileToDir(blob, filename);
+    if (written) {
+      showToast('已保存到「' + storageDirHandle.name + '」→ ' + filename, 'success');
+      return;
+    }
+  }
+
+  // 回退：触发浏览器下载
   var url = URL.createObjectURL(blob);
   var a = document.createElement('a');
   a.href = url;
@@ -1324,6 +1448,12 @@ function handleVideoUpload(event) {
   els.transcriptFeed.appendChild(node);
   els.transcriptFeed.scrollTop = els.transcriptFeed.scrollHeight;
   appendFullTranscript(item);
+
+  // 语音识别始终启动，LLM 分析按需启动
+  startSpeechPipeline();
+  if (aiEnabled && aiConfig.apiKey) {
+    startEmotionFacePipeline();
+  }
 }
 
 // ===== 摄像头/麦克风实时采集 =====
@@ -1444,6 +1574,15 @@ async function startCameraInternal() {
   startAudioVisualizer(cameraStream);
 
   console.log('[摄像头] 内部启动完成');
+
+  // 语音识别始终自动启动（浏览器原生，无需 API Key）
+  startSpeechPipeline();
+
+  // LLM 情绪/表情分析需要开关 + API Key
+  if (aiEnabled && aiConfig.apiKey) {
+    startEmotionFacePipeline();
+  }
+
   return cameraStream;
 }
 
@@ -1507,6 +1646,9 @@ function stopCameraInternal() {
   }
   stopAudioVisualizer();
   els.cameraPreview.srcObject = null;
+
+  // 停止所有分析
+  stopAllAnalysis();
 }
 
 // 关闭摄像头
@@ -1753,6 +1895,548 @@ document.querySelectorAll(".nav-item").forEach((button) => {
   });
 });
 
+// ============================================================
+//  AI 实时分析模块
+//  1) 语音识别 (Web Speech API)
+//  2) 情绪分析 (LLM 文本分析)
+//  3) 表情分析 (Canvas 抓帧 + LLM Vision)
+// ============================================================
+
+// ---- AI 配置管理 ----
+function loadAIConfig() {
+  try {
+    var saved = localStorage.getItem('ai_analysis_config');
+    if (saved) {
+      var parsed = JSON.parse(saved);
+      aiConfig.provider = parsed.provider || 'openai';
+      aiConfig.apiKey = parsed.apiKey || '';
+      aiConfig.customUrl = parsed.customUrl || '';
+      aiConfig.modelName = parsed.modelName || 'gpt-4o';
+      aiEnabled = parsed.enabled === true;
+    }
+  } catch (e) { /* ignore */ }
+  syncAIConfigUI();
+}
+
+function saveAIConfig() {
+  aiConfig.provider = els.aiProvider.value;
+  aiConfig.apiKey = els.aiApiKey.value.trim();
+  aiConfig.customUrl = els.aiCustomUrl.value.trim();
+  aiConfig.modelName = els.aiModelName.value.trim();
+  localStorage.setItem('ai_analysis_config', JSON.stringify({
+    provider: aiConfig.provider,
+    apiKey: aiConfig.apiKey,
+    customUrl: aiConfig.customUrl,
+    modelName: aiConfig.modelName,
+    enabled: aiEnabled
+  }));
+}
+
+function syncAIConfigUI() {
+  els.aiProvider.value = aiConfig.provider;
+  els.aiApiKey.value = aiConfig.apiKey;
+  els.aiCustomUrl.value = aiConfig.customUrl;
+  els.aiModelName.value = aiConfig.modelName || getDefaultModel(aiConfig.provider);
+  els.aiCustomUrlLabel.style.display = aiConfig.provider === 'custom' ? '' : 'none';
+
+  // 面板始终可见，只切换激活状态和开关
+  if (aiEnabled) {
+    els.aiToggleBtn.classList.add('on');
+    els.aiAnalysisPanel.classList.add('active');
+  } else {
+    els.aiToggleBtn.classList.remove('on');
+    els.aiAnalysisPanel.classList.remove('active');
+  }
+}
+
+function getDefaultModel(provider) {
+  var defaults = {
+    openai: 'gpt-4o',
+    deepseek: 'deepseek-chat',
+    qwen: 'qwen-plus',
+    zhipu: 'glm-4-flash',
+    custom: ''
+  };
+  return defaults[provider] || '';
+}
+
+function getAPIEndpoint() {
+  var endpoints = {
+    openai: 'https://api.openai.com/v1/chat/completions',
+    deepseek: 'https://api.deepseek.com/v1/chat/completions',
+    qwen: 'https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions',
+    zhipu: 'https://open.bigmodel.cn/api/paas/v4/chat/completions',
+    custom: aiConfig.customUrl
+  };
+  return endpoints[aiConfig.provider] || aiConfig.customUrl;
+}
+
+function getVisionModel() {
+  var models = {
+    openai: 'gpt-4o',
+    deepseek: null,       // DeepSeek 不支持视觉
+    qwen: 'qwen-vl-plus',
+    zhipu: 'glm-4v',
+    custom: aiConfig.modelName
+  };
+  return models[aiConfig.provider];
+}
+
+// ---- 语音识别 (Web Speech API) ----
+function initSpeechRecognition() {
+  var SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+  if (!SR) {
+    console.warn('[AI] 浏览器不支持 SpeechRecognition API');
+    return false;
+  }
+  return true;
+}
+
+function startSpeechRecognition() {
+  if (!aiEnabled || isSpeechListening) return;
+  var SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+  if (!SR) {
+    els.asrStatus.textContent = '不支持';
+    els.asrStatus.className = 'ai-card-status';
+    els.asrText.textContent = '当前浏览器不支持语音识别，请使用 Chrome 浏览器';
+    return;
+  }
+
+  try {
+    speechRecognition = new SR();
+    speechRecognition.continuous = true;
+    speechRecognition.interimResults = true;
+    speechRecognition.lang = 'zh-CN';
+    speechRecognition.maxAlternatives = 1;
+
+    speechRecognition.onstart = function () {
+      isSpeechListening = true;
+      els.asrStatus.textContent = '监听中';
+      els.asrStatus.className = 'ai-card-status recording';
+      els.aiStatusDot.className = 'ai-status-dot listening';
+      console.log('[AI] 语音识别已启动');
+    };
+
+    speechRecognition.onresult = function (event) {
+      var interim = '';
+      var finalText = '';
+      for (var i = event.resultIndex; i < event.results.length; i++) {
+        var transcript = event.results[i][0].transcript;
+        if (event.results[i].isFinal) {
+          finalText += transcript;
+        } else {
+          interim += transcript;
+        }
+      }
+
+      // 显示实时转写
+      if (interim) {
+        els.asrText.innerHTML = '<em style="color:#94a3b8">' + escapeHtml(interim) + '</em>';
+      }
+      if (finalText) {
+        els.asrText.textContent = finalText;
+        // 追加到转写 feed 和全文
+        onSpeechRecognized(finalText);
+      }
+    };
+
+    speechRecognition.onerror = function (event) {
+      console.error('[AI] 语音识别错误:', event.error);
+      if (event.error === 'not-allowed') {
+        els.asrStatus.textContent = '权限拒绝';
+        els.asrStatus.className = 'ai-card-status';
+        els.asrText.textContent = '请允许麦克风权限后重试';
+      } else if (event.error === 'no-speech') {
+        // 静默，自动重启
+      } else {
+        els.asrStatus.textContent = '错误';
+        els.asrStatus.className = 'ai-card-status';
+        els.aiStatusDot.className = 'ai-status-dot error';
+      }
+    };
+
+    speechRecognition.onend = function () {
+      isSpeechListening = false;
+      // 摄像头或视频仍在，自动重启
+      if (aiEnabled && (isCameraActive || document.querySelector('.video-feed.has-upload'))) {
+        if (speechRestartTimer) clearTimeout(speechRestartTimer);
+        speechRestartTimer = setTimeout(function () {
+          if (aiEnabled && !isSpeechListening) {
+            try { startSpeechRecognition(); } catch (e) { /* ignore */ }
+          }
+        }, 300);
+      } else {
+        els.asrStatus.textContent = '已停止';
+        els.asrStatus.className = 'ai-card-status';
+        els.aiStatusDot.className = 'ai-status-dot';
+      }
+    };
+
+    speechRecognition.start();
+  } catch (e) {
+    console.error('[AI] 语音识别启动失败:', e);
+    els.asrStatus.textContent = '启动失败';
+    els.asrStatus.className = 'ai-card-status';
+  }
+}
+
+function stopSpeechRecognition() {
+  if (speechRestartTimer) { clearTimeout(speechRestartTimer); speechRestartTimer = null; }
+  if (speechRecognition) {
+    try {
+      speechRecognition.onend = null; // 防止自动重启
+      speechRecognition.stop();
+    } catch (e) { /* ignore */ }
+    speechRecognition = null;
+  }
+  isSpeechListening = false;
+  els.asrStatus.textContent = '已停止';
+  els.asrStatus.className = 'ai-card-status';
+  els.aiStatusDot.className = 'ai-status-dot';
+}
+
+function onSpeechRecognized(text) {
+  if (!text || !text.trim()) return;
+  var cleanText = text.trim();
+  // 加入待分析缓冲区
+  pendingAnalysisTexts.push(cleanText);
+  // 限制缓冲区大小
+  if (pendingAnalysisTexts.length > 30) pendingAnalysisTexts.shift();
+
+  // 作为用户发言追加到转写面板
+  var node = document.createElement('div');
+  node.className = 'line';
+  node.innerHTML = '<strong>用户（语音识别）</strong><p>' + escapeHtml(cleanText) + '</p><span class="tag">实时语音</span>';
+  els.transcriptFeed.appendChild(node);
+  els.transcriptFeed.scrollTop = els.transcriptFeed.scrollHeight;
+
+  // 追加到完整文本
+  var lineNumber = String(fullTranscriptLines.length + 1).padStart(2, '0');
+  fullTranscriptLines.push(lineNumber + '. 用户：' + cleanText);
+  syncFullTranscript();
+}
+
+// ---- LLM API 调用 ----
+async function callLLM(messages, options) {
+  options = options || {};
+  var endpoint = getAPIEndpoint();
+  var model = options.model || aiConfig.modelName || getDefaultModel(aiConfig.provider);
+  var apiKey = aiConfig.apiKey;
+
+  if (!apiKey) throw new Error('请先配置 API Key');
+  if (!endpoint) throw new Error('请配置 API 端点地址');
+
+  var headers = {
+    'Content-Type': 'application/json',
+    'Authorization': 'Bearer ' + apiKey
+  };
+
+  // 部分服务商需要额外 headers
+  if (aiConfig.provider === 'qwen') {
+    headers['Authorization'] = 'Bearer ' + apiKey;
+  }
+
+  var body = {
+    model: model,
+    messages: messages,
+    max_tokens: options.maxTokens || 512,
+    temperature: options.temperature || 0.3
+  };
+
+  var resp = await fetch(endpoint, {
+    method: 'POST',
+    headers: headers,
+    body: JSON.stringify(body)
+  });
+
+  if (!resp.ok) {
+    var errText = await resp.text();
+    throw new Error('API 请求失败 (' + resp.status + '): ' + errText.substring(0, 200));
+  }
+
+  var data = await resp.json();
+  return data.choices[0].message.content;
+}
+
+// ---- 情绪分析 ----
+async function analyzeEmotion() {
+  if (!aiEnabled || !aiConfig.apiKey) return;
+  var allText = pendingAnalysisTexts.join(' ');
+  if (!allText || allText === lastEmotionTexts) return;
+  lastEmotionTexts = allText;
+
+  els.aiStatusDot.className = 'ai-status-dot analyzing';
+
+  try {
+    var prompt = '你是一个情绪分析专家。请分析以下对话片段中说话人的情绪，返回JSON格式（只返回JSON，不要其他文字）：\n{\n  "primary_emotion": "正面/中性/负面",\n  "emotion_label": "具体情绪词，如满意、焦虑、愤怒、开心、失望、期待等",\n  "confidence": 0.0-1.0,\n  "positive_score": 0.0-1.0,\n  "neutral_score": 0.0-1.0,\n  "negative_score": 0.0-1.0,\n  "brief_reason": "一句话分析原因"\n}\n\n对话内容：\n' + allText.substring(allText.length - 1500);
+
+    var result = await callLLM([
+      { role: 'system', content: '你是一个专业的情绪分析AI。请严格按JSON格式返回结果。' },
+      { role: 'user', content: prompt }
+    ], { temperature: 0.1, maxTokens: 256 });
+
+    // 解析 JSON
+    var jsonStr = result.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
+    var analysis = JSON.parse(jsonStr);
+
+    // 更新 UI
+    var emojiMap = {
+      '正面': '😊', '满意': '😊', '开心': '😄', '期待': '🤩', '惊喜': '😲', '感动': '🥹',
+      '中性': '😐', '平静': '😐', '好奇': '🤔',
+      '负面': '😟', '焦虑': '😰', '失望': '😞', '愤怒': '😠', '担忧': '😨', '困惑': '😕'
+    };
+    var emoji = emojiMap[analysis.emotion_label] || emojiMap[analysis.primary_emotion] || '😐';
+
+    els.emotionMain.textContent = emoji;
+    els.emotionMain.title = analysis.emotion_label + ' (' + (analysis.confidence * 100).toFixed(0) + '%)';
+
+    var posW = (analysis.positive_score * 100).toFixed(0) + '%';
+    var neuW = (analysis.neutral_score * 100).toFixed(0) + '%';
+    var negW = (analysis.negative_score * 100).toFixed(0) + '%';
+    els.emotionPos.style.width = posW;
+    els.emotionNeu.style.width = neuW;
+    els.emotionNeg.style.width = negW;
+
+    // 添加到情绪历史
+    emotionHistory.push({
+      time: new Date().toISOString(),
+      emotion: analysis.emotion_label,
+      primary: analysis.primary_emotion,
+      confidence: analysis.confidence,
+      reason: analysis.brief_reason
+    });
+
+    els.aiStatusDot.className = 'ai-status-dot listening';
+  } catch (e) {
+    console.error('[AI] 情绪分析失败:', e);
+    els.aiStatusDot.className = 'ai-status-dot error';
+    setTimeout(function () {
+      if (isSpeechListening) els.aiStatusDot.className = 'ai-status-dot listening';
+    }, 2000);
+  }
+}
+
+// ---- 表情分析 ----
+function captureVideoFrame() {
+  // 优先使用摄像头预览，其次使用上传的视频
+  var video = els.cameraPreview;
+  if (!video || !video.videoWidth) {
+    video = els.uploadedVideo;
+  }
+  if (!video || !video.videoWidth || video.paused) return null;
+
+  try {
+    var canvas = document.createElement('canvas');
+    canvas.width = Math.min(video.videoWidth, 640);
+    canvas.height = Math.min(video.videoHeight, 480);
+    var ctx = canvas.getContext('2d');
+    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+    return canvas.toDataURL('image/jpeg', 0.5);
+  } catch (e) {
+    console.error('[AI] 抓帧失败:', e);
+    return null;
+  }
+}
+
+async function analyzeFacialExpression(imageBase64) {
+  if (!aiEnabled || !aiConfig.apiKey || !imageBase64) return;
+
+  // 检查是否有视觉模型
+  var visionModel = getVisionModel();
+  if (!visionModel) {
+    els.expressionTag.textContent = 'N/A';
+    els.expressionDetail.textContent = '当前模型不支持视觉分析';
+    return;
+  }
+
+  try {
+    var result = await callLLM([
+      {
+        role: 'user',
+        content: [
+          {
+            type: 'text',
+            text: '请分析这张人脸图片的表情。返回JSON格式（只返回JSON）：\n{\n  "expression": "表情词，如微笑、严肃、惊讶、困惑、中性、不满等",\n  "intensity": "强烈/明显/轻微",\n  "confidence": 0.0-1.0,\n  "brief_desc": "一句话描述"\n}'
+          },
+          {
+            type: 'image_url',
+            image_url: { url: imageBase64, detail: 'low' }
+          }
+        ]
+      }
+    ], { model: visionModel, temperature: 0.1, maxTokens: 200 });
+
+    var jsonStr = result.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
+    var analysis = JSON.parse(jsonStr);
+
+    var exprEmojiMap = {
+      '微笑': '😊', '大笑': '😄', '严肃': '😐', '惊讶': '😲', '困惑': '😕',
+      '中性': '😶', '不满': '😒', '悲伤': '😢', '愤怒': '😠', '厌恶': '😖',
+      '专注': '🧐', '思考': '🤔'
+    };
+    var emoji = exprEmojiMap[analysis.expression] || '😶';
+
+    els.expressionTag.textContent = emoji + ' ' + analysis.expression;
+    els.expressionDetail.textContent = analysis.brief_desc + ' (' + (analysis.confidence * 100).toFixed(0) + '%)';
+  } catch (e) {
+    console.error('[AI] 表情分析失败:', e);
+    els.expressionDetail.textContent = '分析超时，将在下个周期重试';
+  }
+}
+
+// ---- 分析管线 ----
+// 语音识别始终随摄像头启动（浏览器原生，无需 API Key）
+function startSpeechPipeline() {
+  if (initSpeechRecognition()) {
+    startSpeechRecognition();
+  } else {
+    els.asrStatus.textContent = '不支持';
+    els.asrStatus.className = 'ai-card-status';
+    els.asrText.textContent = '当前浏览器不支持语音识别，请使用 Chrome 浏览器';
+  }
+}
+
+// LLM 情绪 + 表情分析（需要 AI 开关 + API Key）
+function startEmotionFacePipeline() {
+  if (!aiEnabled || !aiConfig.apiKey) return;
+
+  // 定时情绪分析（每 8 秒）
+  if (analysisIntervalId) clearInterval(analysisIntervalId);
+  analysisIntervalId = setInterval(function () {
+    if (aiEnabled && aiConfig.apiKey && pendingAnalysisTexts.length > 0) {
+      analyzeEmotion();
+    }
+  }, 8000);
+
+  // 定时表情分析（每 10 秒）
+  if (faceCaptureIntervalId) clearInterval(faceCaptureIntervalId);
+  faceCaptureIntervalId = setInterval(function () {
+    if (aiEnabled && aiConfig.apiKey) {
+      var frame = captureVideoFrame();
+      if (frame && frame !== lastFaceBase64) {
+        lastFaceBase64 = frame;
+        analyzeFacialExpression(frame);
+      }
+    }
+  }, 10000);
+
+  console.log('[AI] LLM 情绪/表情分析已启动');
+}
+
+function stopEmotionFacePipeline() {
+  if (analysisIntervalId) { clearInterval(analysisIntervalId); analysisIntervalId = null; }
+  if (faceCaptureIntervalId) { clearInterval(faceCaptureIntervalId); faceCaptureIntervalId = null; }
+  els.emotionMain.textContent = '--';
+  els.emotionPos.style.width = '0%';
+  els.emotionNeu.style.width = '0%';
+  els.emotionNeg.style.width = '0%';
+  els.expressionTag.textContent = '--';
+  els.expressionDetail.textContent = '配置 API Key 后启用';
+}
+
+function stopAllAnalysis() {
+  stopSpeechRecognition();
+  stopEmotionFacePipeline();
+
+  els.aiStatusDot.className = 'ai-status-dot';
+  els.asrStatus.textContent = '已停止';
+  els.asrStatus.className = 'ai-card-status';
+  els.asrText.textContent = '开启摄像头后自动启动语音识别...';
+}
+
+// ---- AI 开关 ----
+function toggleAI() {
+  aiEnabled = !aiEnabled;
+  if (aiEnabled) {
+    els.aiToggleBtn.classList.add('on');
+    els.aiAnalysisPanel.classList.add('active');
+    // 如果已有视频源且 API 已配置，启动 LLM 情绪/表情分析
+    if (isCameraActive || document.querySelector('.video-feed.has-upload')) {
+      if (aiConfig.apiKey) startEmotionFacePipeline();
+    }
+    showToast('AI 情绪/表情分析已开启（语音识别始终自动运行）', 'success');
+  } else {
+    els.aiToggleBtn.classList.remove('on');
+    els.aiAnalysisPanel.classList.remove('active');
+    stopEmotionFacePipeline();
+    showToast('AI 情绪/表情分析已关闭（语音识别仍运行中）', 'info');
+  }
+  saveAIConfig();
+}
+
+// ---- API 设置保存 ----
+function handleAISettingsSave() {
+  saveAIConfig();
+  els.aiSettingsBody.style.display = 'none';
+  showToast('AI 配置已保存', 'success');
+
+  // 如果当前开启了 AI 且有视频源，重启 LLM 分析管线
+  if (aiEnabled && aiConfig.apiKey && (isCameraActive || document.querySelector('.video-feed.has-upload'))) {
+    stopEmotionFacePipeline();
+    startEmotionFacePipeline();
+  }
+}
+
+// ---- API 连接测试 ----
+async function handleAITestConnection() {
+  var key = els.aiApiKey.value.trim();
+  if (!key) {
+    els.aiTestResult.textContent = '请先输入 API Key';
+    els.aiTestResult.className = 'ai-test-result error';
+    return;
+  }
+
+  // 临时保存配置用于测试
+  var prevKey = aiConfig.apiKey;
+  aiConfig.apiKey = key;
+  aiConfig.provider = els.aiProvider.value;
+  aiConfig.customUrl = els.aiCustomUrl.value.trim();
+  aiConfig.modelName = els.aiModelName.value.trim();
+
+  els.aiTestResult.textContent = '测试中...';
+  els.aiTestResult.className = 'ai-test-result';
+
+  try {
+    await callLLM([
+      { role: 'user', content: '回复"OK"' }
+    ], { maxTokens: 10, temperature: 0 });
+    els.aiTestResult.textContent = '连接成功 ✓';
+    els.aiTestResult.className = 'ai-test-result success';
+  } catch (e) {
+    els.aiTestResult.textContent = '失败: ' + e.message.substring(0, 60);
+    els.aiTestResult.className = 'ai-test-result error';
+  }
+
+  aiConfig.apiKey = prevKey; // 恢复
+}
+
+// ---- 工具函数 ----
+function escapeHtml(str) {
+  var div = document.createElement('div');
+  div.textContent = str;
+  return div.innerHTML;
+}
+
+function showToast(msg, type) {
+  // 简单 toast 实现（如果已有 toast 函数则使用已有的）
+  if (typeof window.showToast === 'function') {
+    window.showToast(msg, type);
+    return;
+  }
+  var toast = document.createElement('div');
+  toast.textContent = msg;
+  toast.style.cssText = 'position:fixed;bottom:80px;left:50%;transform:translateX(-50%);padding:10px 24px;border-radius:8px;font-size:13px;z-index:99999;pointer-events:none;animation:fadeIn 0.3s ease;'
+    + (type === 'success' ? 'background:rgba(16,185,129,0.9);color:#fff;' :
+       type === 'error' ? 'background:rgba(239,68,68,0.9);color:#fff;' :
+       'background:rgba(59,130,246,0.9);color:#fff;');
+  document.body.appendChild(toast);
+  setTimeout(function () {
+    toast.style.opacity = '0';
+    toast.style.transition = 'opacity 0.3s';
+    setTimeout(function () { toast.remove(); }, 300);
+  }, 2500);
+}
+
 document.querySelectorAll(".segment").forEach((button) => {
   button.addEventListener("click", () => setStage(button.dataset.stage));
 });
@@ -1765,6 +2449,7 @@ document.getElementById("nextLineBtn").addEventListener("click", addTranscriptLi
 document.getElementById("videoUpload").addEventListener("change", handleVideoUpload);
 document.getElementById("copyTranscriptBtn").addEventListener("click", copyTranscript);
 document.getElementById("clearTranscriptBtn").addEventListener("click", clearTranscript);
+els.selectStorageDirBtn.addEventListener("click", selectStorageDir);
 els.startSessionBtn.addEventListener("click", startPendingSession);
 
 // 准备锁定/解锁事件
@@ -1823,6 +2508,20 @@ els.startCameraBtn.addEventListener("click", startCamera);
 els.stopCameraBtn.addEventListener("click", stopCamera);
 els.cameraSelect.addEventListener("change", switchCamera);
 
+// ---- AI 分析事件绑定 ----
+els.aiToggleBtn.addEventListener("click", toggleAI);
+els.aiSettingsBtn.addEventListener("click", function () {
+  var body = els.aiSettingsBody;
+  body.style.display = body.style.display === 'none' ? 'block' : 'none';
+});
+els.aiProvider.addEventListener("change", function () {
+  aiConfig.provider = els.aiProvider.value;
+  els.aiCustomUrlLabel.style.display = aiConfig.provider === 'custom' ? '' : 'none';
+  els.aiModelName.value = getDefaultModel(aiConfig.provider);
+});
+els.aiSaveSettingsBtn.addEventListener("click", handleAISettingsSave);
+els.aiTestConnBtn.addEventListener("click", handleAITestConnection);
+
 renderSessionFilters();
 renderSessions();
 renderOutline();
@@ -1835,6 +2534,9 @@ updateProgress(progress);
 updateTimer();
 updateCaptureStatus(false, false);
 updateContextVisibility();
+
+// 加载 AI 分析配置
+loadAIConfig();
 
 // ===== 字体大小控制 =====
 (function initFontSizeControl() {
@@ -4847,6 +5549,8 @@ window.closeGroupDetail = closeGroupDetail;
 // 初始化用户洞察
 enrichUserData();
 initInsightCityFilter();
+// 恢复上次选择的录像存储目录
+restoreStorageDir().catch(function() {});
 
 // 当切换到用户洞察视图时渲染矩阵
 const originalSetView = setView;

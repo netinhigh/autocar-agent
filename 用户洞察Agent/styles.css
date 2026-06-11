@@ -1486,6 +1486,28 @@ body.context-hidden .workspace {
   margin-top: 14px;
 }
 
+/* 录像存储目录选择 */
+.storage-dir-area {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 10px;
+  flex-wrap: wrap;
+}
+
+.storage-path {
+  font-size: 12px;
+  color: #a5f3fc;
+  max-width: 260px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  background: rgba(6, 182, 212, 0.1);
+  padding: 4px 10px;
+  border-radius: 6px;
+  border: 1px solid rgba(103, 232, 249, 0.2);
+}
+
 .transcript-feed {
   display: grid;
   align-content: start;
@@ -2561,6 +2583,295 @@ body.context-hidden .workspace {
   font-weight: 600;
   color: var(--ink);
   margin: 0 0 16px 0;
+}
+
+/* ========== AI 实时分析面板 ========== */
+.ai-analysis-panel {
+  margin-top: 14px;
+  border: 1px solid rgba(103, 232, 249, 0.18);
+  border-radius: 10px;
+  background: linear-gradient(160deg, rgba(12, 28, 48, 0.55), rgba(7, 18, 33, 0.7));
+  overflow: hidden;
+  transition: border-color 0.3s;
+}
+.ai-analysis-panel.active {
+  border-color: rgba(52, 211, 153, 0.35);
+  box-shadow: 0 0 24px rgba(52, 211, 153, 0.08);
+}
+
+.ai-panel-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 14px;
+  border-bottom: 1px solid rgba(126, 226, 255, 0.08);
+}
+
+.ai-panel-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: #67e8f9;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.ai-status-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #64748b;
+  transition: background 0.3s;
+}
+.ai-status-dot.listening {
+  background: #22d3ee;
+  box-shadow: 0 0 8px #22d3ee;
+  animation: rec-pulse 1.2s ease-in-out infinite;
+}
+.ai-status-dot.analyzing {
+  background: #f59e0b;
+  box-shadow: 0 0 8px #f59e0b;
+  animation: rec-pulse 0.8s ease-in-out infinite;
+}
+.ai-status-dot.error {
+  background: #ef4444;
+  box-shadow: 0 0 8px #ef4444;
+}
+
+.ai-panel-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.ai-settings-btn {
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border: 1px solid rgba(126, 226, 255, 0.18);
+  border-radius: 6px;
+  background: transparent;
+  color: #94a3b8;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+.ai-settings-btn:hover {
+  border-color: rgba(126, 226, 255, 0.4);
+  color: #67e8f9;
+  background: rgba(34, 211, 238, 0.08);
+}
+
+/* Toggle 开关 */
+.ai-toggle-btn {
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  padding: 0;
+}
+.ai-toggle-track {
+  display: block;
+  width: 36px;
+  height: 20px;
+  border-radius: 999px;
+  background: rgba(100, 116, 139, 0.35);
+  position: relative;
+  transition: background 0.25s;
+}
+.ai-toggle-btn.on .ai-toggle-track {
+  background: rgba(34, 211, 238, 0.5);
+}
+.ai-toggle-thumb {
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: #cbd5e1;
+  transition: transform 0.25s, background 0.25s;
+}
+.ai-toggle-btn.on .ai-toggle-thumb {
+  transform: translateX(16px);
+  background: #22d3ee;
+  box-shadow: 0 0 8px rgba(34, 211, 238, 0.4);
+}
+
+/* API 设置区 */
+.ai-settings-body {
+  padding: 12px 14px;
+  border-bottom: 1px solid rgba(126, 226, 255, 0.08);
+  background: rgba(3, 10, 22, 0.3);
+}
+
+.ai-settings-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
+.ai-setting-item {
+  display: grid;
+  gap: 4px;
+}
+.ai-setting-item span {
+  color: #94a3b8;
+  font-size: 11px;
+  font-weight: 500;
+}
+.ai-setting-item input,
+.ai-setting-item select {
+  width: 100%;
+  min-height: 32px;
+  padding: 5px 10px;
+  border: 1px solid rgba(126, 226, 255, 0.18);
+  border-radius: 6px;
+  background: rgba(5, 11, 22, 0.7);
+  color: #c7d7e5;
+  font-size: 12px;
+  outline: none;
+}
+.ai-setting-item input:focus,
+.ai-setting-item select:focus {
+  border-color: rgba(34, 211, 238, 0.5);
+  box-shadow: 0 0 10px rgba(34, 211, 238, 0.1);
+}
+.ai-setting-item input::placeholder {
+  color: #64748b;
+}
+
+.ai-settings-footer {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 10px;
+}
+.ai-settings-footer .ghost-btn {
+  font-size: 12px;
+  padding: 5px 12px;
+}
+
+.ai-test-result {
+  font-size: 11px;
+  margin-left: auto;
+}
+.ai-test-result.success { color: #34d399; }
+.ai-test-result.error { color: #fca5a5; }
+
+/* AI 分析洞察区 */
+.ai-insights {
+  padding: 10px 14px 14px;
+}
+
+.ai-insight-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 8px;
+}
+
+.ai-insight-card {
+  border: 1px solid rgba(126, 226, 255, 0.1);
+  border-radius: 8px;
+  padding: 10px;
+  background: rgba(8, 20, 37, 0.45);
+  min-height: 80px;
+}
+
+.ai-card-label {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  margin-bottom: 8px;
+  color: #94a3b8;
+  font-size: 11px;
+  font-weight: 600;
+}
+.ai-card-label svg { flex-shrink: 0; }
+
+.ai-card-status {
+  margin-left: auto;
+  font-size: 10px;
+  padding: 2px 6px;
+  border-radius: 999px;
+  background: rgba(100, 116, 139, 0.2);
+  color: #94a3b8;
+}
+.ai-card-status.active {
+  background: rgba(34, 211, 238, 0.18);
+  color: #67e8f9;
+}
+.ai-card-status.recording {
+  background: rgba(239, 68, 68, 0.2);
+  color: #fca5a5;
+}
+
+.ai-card-body {
+  font-size: 12px;
+  color: #c7d7e5;
+  line-height: 1.55;
+  word-break: break-word;
+}
+
+/* 情绪指示器 */
+.emotion-indicator {
+  display: inline-block;
+  font-size: 24px;
+  margin-bottom: 4px;
+}
+
+.emotion-bars {
+  display: grid;
+  grid-template-columns: 36px 1fr;
+  gap: 3px 6px;
+  align-items: center;
+}
+
+.emotion-bar-label {
+  font-size: 11px;
+  color: #94a3b8;
+}
+
+.emotion-bar {
+  height: 6px;
+  border-radius: 999px;
+  background: rgba(148, 163, 184, 0.15);
+  overflow: hidden;
+}
+.emotion-bar i {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  transition: width 0.4s ease;
+}
+#emotionPos { background: linear-gradient(90deg, #22d3ee, #34d399); }
+#emotionNeu { background: linear-gradient(90deg, #f59e0b, #fbbf24); }
+#emotionNeg { background: linear-gradient(90deg, #f87171, #ef4444); }
+
+/* 表情标签 */
+.expression-tag {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 600;
+  background: rgba(34, 211, 238, 0.12);
+  color: #67e8f9;
+  margin-bottom: 4px;
+}
+.expression-detail {
+  display: block;
+  font-size: 11px;
+  color: #94a3b8;
+}
+
+/* 响应式 */
+@media (max-width: 860px) {
+  .ai-insight-row {
+    grid-template-columns: 1fr;
+  }
+  .ai-settings-grid {
+    grid-template-columns: 1fr;
+  }
 }
 
 .form-actions {
