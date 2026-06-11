@@ -60,17 +60,21 @@ const strategies = [];
 const knowledgeItems = [];
 
 
-// ★ 从云端恢复数据（由 index.html 守卫在 app.js 加载前预加载）
+// ★ 从云端/本地恢复数据（由 index.html 守卫在 app.js 加载前预加载）
 //    守卫在 <head> 中异步加载，到此处（<body> 底部）通常已完成
 //    如果尚未完成，app.js 启动后延迟加载
 var _restored = window._restoredInsightData;
 let userSamples = (_restored && _restored.userSamples) ? _restored.userSamples : [];
 if (_restored) console.log('[数据恢复] userSamples: ' + userSamples.length + ' 条');
 
-// 如果守卫尚未完成数据加载，延迟重试
+// 如果守卫尚未完成数据加载，延迟重试（最多等待 5 秒）
 if (!_restored && window.SUPABASE_READY) {
-  setTimeout(function() {
+  var _retryCount = 0;
+  var _retryMax = 10;  // 10次 × 500ms = 5秒
+  var _retryInterval = setInterval(function() {
+    _retryCount++;
     if (window._restoredInsightData) {
+      clearInterval(_retryInterval);
       var d = window._restoredInsightData;
       userSamples = (d.userSamples) ? d.userSamples : [];
       researchSessions = (d.researchSessions) ? d.researchSessions : [];
@@ -79,8 +83,27 @@ if (!_restored && window.SUPABASE_READY) {
       if (typeof renderSessionFilters === 'function') renderSessionFilters();
       if (typeof renderSessions === 'function') renderSessions();
       if (typeof renderAudienceAvatars === 'function') renderAudienceAvatars();
+    } else if (window._dataRestored || _retryCount >= _retryMax) {
+      // 守卫已完成但无数据，或超时
+      clearInterval(_retryInterval);
+      if (!window._restoredInsightData) {
+        console.log('[数据恢复] 未找到历史数据，使用空数据启动');
+      }
     }
   }, 500);
+}
+
+// ★ 如果浏览器有 localStorage 备份但 _restored 为空（极端情况），主动从 localStorage 恢复
+if (!_restored && !window.SUPABASE_READY) {
+  try {
+    var _lsBackup = localStorage.getItem('vc_insight_backup');
+    if (_lsBackup) {
+      var _parsed = JSON.parse(_lsBackup);
+      userSamples = _parsed.userSamples || [];
+      researchSessions = _parsed.researchSessions || [];
+      console.log('[数据恢复] 从 localStorage 恢复 (离线模式): ' + researchSessions.length + ' 场次, ' + userSamples.length + ' 样本');
+    }
+  } catch(e) {}
 }
 
 // ★ 获取已完成调研的用户样本（只返回所属调研状态为"已完成"的用户）
@@ -2969,31 +2992,43 @@ function removeQuestion(idx) {
 
 // 保存到 IndexedDB 本地 + Supabase 云端（100MB 配额）
 function saveInsightDataToCloud() {
+  var dataToSave = {
+    researchSessions: researchSessions,
+    userSamples: userSamples
+  };
+
+  // 始终先写 localStorage 紧急备份（同步，瞬时完成）
+  try {
+    localStorage.setItem('vc_insight_backup', JSON.stringify({
+      researchSessions: researchSessions,
+      userSamples: userSamples,
+      timestamp: Date.now()
+    }));
+  } catch(e) {}
+
   if (!window.StorageEngine) {
     // 降级：直接写 Supabase
     if (window.SUPABASE_READY && window.Auth) {
-      window.Auth.saveUserData('insight_data', {
-        researchSessions: researchSessions,
-        userSamples: userSamples
-      });
+      window.Auth.saveUserData('insight_data', dataToSave)
+        .then(function() { console.log('[Insight] ☁ 云端保存成功'); })
+        .catch(function(e) { console.error('[Insight] ☁ 云端保存失败:', e.message); });
     }
     return;
   }
-  StorageEngine.save('insight_data', {
-    researchSessions: researchSessions,
-    userSamples: userSamples
-  }).then(function(r) {
-    if (r.cloud && !r.cloud.ok) {
-      console.warn('[Insight] 云端跳过:', r.cloudSkipped, '| 数据已存本地');
+  StorageEngine.save('insight_data', dataToSave).then(function(r) {
+    if (r.cloud && r.cloud.ok) {
+      console.log('[Insight] ☁ 云端保存成功 (' + r.cloud.size + 'B)');
+    } else if (r.cloud) {
+      console.warn('[Insight] ☁ 云端保存跳过:', r.cloudSkipped || r.cloud.reason, '| 数据已存本地 + localStorage');
     }
   });
 }
 
-// 防抖版保存（避免频繁请求）
+// 防抖版保存（避免频繁请求，但缩短延迟防止数据丢失）
 var _insightSaveTimer = null;
 function saveInsightDataDebounced() {
   if (_insightSaveTimer) clearTimeout(_insightSaveTimer);
-  _insightSaveTimer = setTimeout(saveInsightDataToCloud, 2000);
+  _insightSaveTimer = setTimeout(saveInsightDataToCloud, 500);
 }
 
 // ★★★ 强制立即保存（登出前调用，取消防抖并同步写入）★★★
