@@ -1368,11 +1368,54 @@ body.context-hidden .workspace {
   font-size: 12px;
 }
 
+/* 录制指示灯（视频画面上的红色闪烁圆点 + 计时） */
+.recording-indicator {
+  position: absolute;
+  z-index: 4;
+  left: 18px;
+  top: 18px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 12px;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.65);
+  border: 1px solid rgba(239, 68, 68, 0.35);
+  box-shadow: 0 0 12px rgba(239, 68, 68, 0.25);
+}
+
+.rec-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: #ef4444;
+  box-shadow: 0 0 8px #ef4444;
+  animation: rec-pulse 1.2s ease-in-out infinite;
+}
+
+@keyframes rec-pulse {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50%      { opacity: 0.35; transform: scale(0.75); }
+}
+
+.rec-timer {
+  color: #fca5a5;
+  font-size: 13px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.5px;
+}
+
 .capture-status {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 8px;
   margin-top: 12px;
+}
+
+/* 录制时 capture-status 变为 4 列（音频/视频/文本/时长） */
+.capture-status.recording-active {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
 }
 
 .status-chip {

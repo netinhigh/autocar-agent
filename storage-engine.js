@@ -9,13 +9,37 @@ var StorageEngine = (function () {
   'use strict';
 
   var DB_NAME = 'autocar_local_storage';
-  var DB_VERSION = 2;
+  var DB_VERSION = 3;
   var STORE_NAME = 'userData';
   var CLOUD_QUOTA_BYTES = 100 * 1024 * 1024;   // 100 MB
 
   var db = null;
   var dbReady = false;
   var _initPromise = null;
+
+  // ★ 获取当前用户 ID 前缀（用于 IndexedDB key 隔离）
+  //    不同用户的数据用不同前缀，防止同一浏览器多用户数据互相覆盖
+  //    使用同步方式获取：优先 window._currentUserId，其次 localStorage
+  function _userIdPrefix() {
+    try {
+      // 1) 优先从全局变量获取（登录时设置）
+      if (window._currentUserId) return 'uid_' + window._currentUserId + '_';
+      // 2) 从 localStorage 读取（跨标签页持久化）
+      var saved = localStorage.getItem('_curr_uid');
+      if (saved) {
+        window._currentUserId = saved;
+        return 'uid_' + saved + '_';
+      }
+    } catch(e) {}
+    // 无法获取用户ID时，使用空前缀（兼容旧数据/开发模式）
+    return '';
+  }
+
+  // ★ 将原始 key 转换为带 userId 前缀的 key
+  function _prefixKey(key) {
+    var prefix = _userIdPrefix();
+    return prefix ? (prefix + key) : key;
+  }
 
   // ========== IndexedDB 初始化 ==========
 
@@ -57,10 +81,11 @@ var StorageEngine = (function () {
   function _localGet(key) {
     return _initDB().then(function (ok) {
       if (!ok || !db) return null;
+      var prefixedKey = _prefixKey(key);
       return new Promise(function (resolve) {
         try {
           var tx = db.transaction(STORE_NAME, 'readonly');
-          var req = tx.objectStore(STORE_NAME).get(key);
+          var req = tx.objectStore(STORE_NAME).get(prefixedKey);
           req.onsuccess = function () { resolve(req.result ? req.result.data_value : null); };
           req.onerror = function () { resolve(null); };
         } catch (e) { resolve(null); }
@@ -71,11 +96,12 @@ var StorageEngine = (function () {
   function _localSet(key, value) {
     return _initDB().then(function (ok) {
       if (!ok || !db) return false;
+      var prefixedKey = _prefixKey(key);
       return new Promise(function (resolve) {
         try {
           var tx = db.transaction(STORE_NAME, 'readwrite');
           tx.objectStore(STORE_NAME).put({
-            data_key: key,
+            data_key: prefixedKey,
             data_value: value,
             size_bytes: _sizeBytes(value),
             updated_at: Date.now()
@@ -90,10 +116,11 @@ var StorageEngine = (function () {
   function _localDelete(key) {
     return _initDB().then(function (ok) {
       if (!ok || !db) return false;
+      var prefixedKey = _prefixKey(key);
       return new Promise(function (resolve) {
         try {
           var tx = db.transaction(STORE_NAME, 'readwrite');
-          tx.objectStore(STORE_NAME).delete(key);
+          tx.objectStore(STORE_NAME).delete(prefixedKey);
           tx.oncomplete = function () { resolve(true); };
           tx.onerror = function () { resolve(false); };
         } catch (e) { resolve(false); }
@@ -104,11 +131,19 @@ var StorageEngine = (function () {
   function _localGetAllKeys() {
     return _initDB().then(function (ok) {
       if (!ok || !db) return [];
+      var prefix = _userIdPrefix();
       return new Promise(function (resolve) {
         try {
           var tx = db.transaction(STORE_NAME, 'readonly');
           var req = tx.objectStore(STORE_NAME).getAllKeys();
-          req.onsuccess = function () { resolve(req.result || []); };
+          req.onsuccess = function () {
+            var all = req.result || [];
+            // ★ 只返回当前用户的 keys，过滤掉其他用户的数据
+            if (prefix) {
+              all = all.filter(function(k) { return k.indexOf(prefix) === 0; });
+            }
+            resolve(all);
+          };
           req.onerror = function () { resolve([]); };
         } catch (e) { resolve([]); }
       });
@@ -118,13 +153,19 @@ var StorageEngine = (function () {
   function _localTotalSize() {
     return _initDB().then(function (ok) {
       if (!ok || !db) return 0;
+      var prefix = _userIdPrefix();
       return new Promise(function (resolve) {
         try {
           var tx = db.transaction(STORE_NAME, 'readonly');
           var req = tx.objectStore(STORE_NAME).getAll();
           req.onsuccess = function () {
             var total = 0;
-            (req.result || []).forEach(function (r) { total += (r.size_bytes || 0); });
+            (req.result || []).forEach(function (r) {
+              // ★ 只统计当前用户的数据大小
+              if (!prefix || r.data_key.indexOf(prefix) === 0) {
+                total += (r.size_bytes || 0);
+              }
+            });
             resolve(total);
           };
           req.onerror = function () { resolve(0); };
@@ -328,6 +369,36 @@ var StorageEngine = (function () {
             tx.objectStore(STORE_NAME).clear();
             tx.oncomplete = function () { console.log('[StorageEngine] 本地已清空'); resolve(true); };
             tx.onerror = function () { resolve(false); };
+          } catch (e) { resolve(false); }
+        });
+      });
+    },
+
+    // ★ 只清除当前用户的本地数据（保留其他用户的数据）
+    clearLocalForCurrentUser: function () {
+      var prefix = _userIdPrefix();
+      if (!prefix) {
+        // 无法确定用户，安全起见清除全部
+        return this.clearLocal();
+      }
+      return _initDB().then(function (ok) {
+        if (!ok || !db) return false;
+        return new Promise(function (resolve) {
+          try {
+            var tx = db.transaction(STORE_NAME, 'readwrite');
+            var store = tx.objectStore(STORE_NAME);
+            var reqGetAll = store.getAllKeys();
+            reqGetAll.onsuccess = function () {
+              var allKeys = reqGetAll.result || [];
+              var userKeys = allKeys.filter(function(k) { return k.indexOf(prefix) === 0; });
+              userKeys.forEach(function(k) { store.delete(k); });
+              tx.oncomplete = function () {
+                console.log('[StorageEngine] 当前用户本地数据已清除 (' + userKeys.length + ' 条)');
+                resolve(true);
+              };
+              tx.onerror = function () { resolve(false); };
+            };
+            reqGetAll.onerror = function () { resolve(false); };
           } catch (e) { resolve(false); }
         });
       });

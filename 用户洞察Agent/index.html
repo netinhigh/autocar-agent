@@ -42,52 +42,55 @@
         initSupabase();
         var result = await AuthGuard.protect(false);
         if (!result.authenticated && !result.devMode) return;
-
-        // 初始化 StorageEngine（预加载 IndexedDB）
-        if (window.StorageEngine) { await StorageEngine.init(); }
-
-        // 从云端同步共享数据（SharedDataStore 内部已使用 StorageEngine）
+        
+        // ★ 设置当前用户 ID（供 StorageEngine IndexedDB key 隔离用）
+        try {
+          var currentUser = await window.Auth.getCurrentUser();
+          if (currentUser) {
+            window._currentUserId = currentUser.id;
+            localStorage.setItem('_curr_uid', currentUser.id);
+          }
+        } catch(e) {}
+        
+        // 从云端同步用户数据
         if (window.SharedDataStore) {
           await SharedDataStore.loadFromCloud();
         }
-
-        // ★ 恢复用户洞察数据（调研场次 + 用户样本）
-        //    使用 StorageEngine 双存储：云端优先 → 本地 IndexedDB 兜底 → localStorage 兜底
-        if (window.StorageEngine) {
-          try {
-            var seResult = await StorageEngine.load('insight_data');
-            if (seResult && seResult.data) {
-              window._restoredInsightData = seResult.data;
-              console.log('[守卫] 洞察数据加载 (来源=' + seResult.source + '): ' +
-                (seResult.data.researchSessions ? seResult.data.researchSessions.length : 0) + ' 场次, ' +
-                (seResult.data.userSamples ? seResult.data.userSamples.length : 0) + ' 样本');
-            } else {
-              // 兜底：localStorage 备份
-              try {
-                var backup = localStorage.getItem('vc_insight_backup');
-                if (backup) { window._restoredInsightData = JSON.parse(backup); console.log('[守卫] 从 localStorage 备份恢复'); }
-              } catch(e2) {}
-            }
-          } catch(e) {
-            console.warn('[守卫] 洞察数据加载失败:', e.message);
-          }
-        } else if (window.SUPABASE_READY && window.Auth) {
-          // 降级：旧版直达 Supabase
+        // ★ 从云端恢复用户洞察数据（调研场次 + 用户样本）
+        //    必须在 app.js 加载前执行，否则 app.js 会用空数组覆盖
+        if (window.SUPABASE_READY && window.Auth) {
           try {
             var insightData = await window.Auth.loadUserData('insight_data');
             if (insightData) {
               window._restoredInsightData = insightData;
-              console.log('[守卫] 云端直达: ' + (insightData.researchSessions ? insightData.researchSessions.length : 0) + ' 场次');
+              console.log('[守卫] 已加载云端洞察数据：' + 
+                (insightData.researchSessions ? insightData.researchSessions.length : 0) + ' 个调研场次，' + 
+                (insightData.userSamples ? insightData.userSamples.length : 0) + ' 个用户样本');
             } else {
+              // 尝试从 localStorage 备份恢复
               try {
-                var backup2 = localStorage.getItem('vc_insight_backup');
-                if (backup2) { window._restoredInsightData = JSON.parse(backup2); }
+                var backup = localStorage.getItem('vc_insight_backup');
+                if (backup) {
+                  window._restoredInsightData = JSON.parse(backup);
+                  console.log('[守卫] 从本地备份恢复了洞察数据');
+                }
               } catch(e2) {}
             }
           } catch(e) {
-            console.warn('[守卫] 降级加载失败:', e.message);
+            console.warn('[守卫] 加载云端洞察数据失败:', e.message);
           }
         }
+
+        // ★★★ 页面关闭/刷新前紧急保存到 localStorage（同步操作，不依赖网络）★★★
+        window.addEventListener('beforeunload', function() {
+          try {
+            // 尝试使用 sendBeacon 异步上传到 Supabase（不阻塞页面关闭）
+            if (window._emergencyBackupData) {
+              var blob = new Blob([JSON.stringify(window._emergencyBackupData)], {type: 'application/json'});
+              navigator.sendBeacon(window.SUPABASE_CONFIG.url + '/rest/v1/user_data', blob);
+            }
+          } catch(e) {}
+        });
       })();
     </script>
 
@@ -323,11 +326,16 @@
                       <span></span><span></span><span></span><span></span><span></span>
                     </div>
                     <div class="capture-badge" id="captureBadge">音频 / 视频待采集</div>
+                    <div class="recording-indicator" id="recordingIndicator" style="display:none;">
+                      <span class="rec-dot"></span>
+                      <span class="rec-timer" id="recordingTimer">00:00</span>
+                    </div>
                   </div>
                   <div class="capture-status" aria-label="采集状态">
                     <span class="status-chip" id="audioStatus">音频：待开始</span>
                     <span class="status-chip" id="videoStatus">视频：待开始</span>
                     <span class="status-chip" id="textStatus">文本：待同步</span>
+                    <span class="status-chip" id="recordStatus" style="display:none;">录制时长：00:00</span>
                   </div>
                   <div class="camera-controls" id="cameraControls" style="display:none;">
                     <label class="camera-select-label">

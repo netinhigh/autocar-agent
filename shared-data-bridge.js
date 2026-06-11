@@ -903,6 +903,26 @@ var SharedDataStore = (function() {
     syncToCloudNow: function() {
       if (cloudSyncTimer) clearTimeout(cloudSyncTimer);
       saveToCloud();
+    },
+
+    // ★ 强制立即同步到云端（返回 Promise，登出时调用）
+    flushToCloud: function() {
+      return new Promise(function(resolve) {
+        if (cloudSyncTimer) clearTimeout(cloudSyncTimer);
+        cloudSyncTimer = null;
+        // 先写 localStorage 紧急备份
+        try {
+          var snap = _buildSnapshot();
+          localStorage.setItem('vc_ui_shared_data', JSON.stringify(snap));
+        } catch(e) {}
+        // 写云端
+        saveToCloud();
+        // 等待 1.5 秒确保网络请求完成
+        setTimeout(function() {
+          console.log('[SharedDataStore] flush 完成');
+          resolve(true);
+        }, 1500);
+      });
     }
   };
 })();

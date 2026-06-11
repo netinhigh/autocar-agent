@@ -156,12 +156,20 @@ let activeQuantSessionId = null; // 当前激活的定量调研ID
 let currentSurvey = null; // 当前编辑的问卷
 let questionCounter = 0; // 问题计数器
 // 摄像头/麦克风状态
-let cameraStream = null;        // MediaStream 对象
+let cameraStream = null;        // MediaStream 对象（含视频+音频轨道）
 let audioContext = null;        // AudioContext 用于音浪可视化
 let audioAnalyser = null;       // AnalyserNode
 let audioDataArray = null;      // 音频频域数据
 let audioAnimId = null;         // requestAnimationFrame ID
 let isCameraActive = false;     // 摄像头是否已开启
+
+// MediaRecorder 录制状态
+let mediaRecorder = null;          // MediaRecorder 实例（视频+音频合并流）
+let audioRecorder = null;          // 纯音频 MediaRecorder 实例
+let recordedVideoChunks = [];      // 视频 Blob 片段
+let recordedAudioChunks = [];      // 音频 Blob 片段
+let recordingStartTime = null;     // 录制开始时间戳（毫秒）
+let recordingElapsedId = null;     // 录制计时器 interval ID
 // 调研准备锁定状态
 let preparationLocked = false;  // 是否已锁定准备
 let lockPassword = '';          // 生成的数字密码
@@ -205,6 +213,10 @@ const els = {
   videoStatus: document.getElementById("videoStatus"),
   textStatus: document.getElementById("textStatus"),
   captureBadge: document.getElementById("captureBadge"),
+  recordingIndicator: document.getElementById("recordingIndicator"),
+  recordingTimer: document.getElementById("recordingTimer"),
+  recordStatus: document.getElementById("recordStatus"),
+  captureStatus: document.querySelector(".capture-status"),
   uploadedVideo: document.getElementById("uploadedVideo"),
   uploadFileName: document.getElementById("uploadFileName"),
   sessionGroups: document.getElementById("sessionGroups"),
@@ -1063,24 +1075,231 @@ function addTranscriptLine() {
   document.getElementById("signalMetric").textContent = String(8 + transcriptIndex);
 }
 
-function startRecording() {
-  isRecording = !isRecording;
-  const recordBtn = document.getElementById("recordBtn");
-  recordBtn.textContent = isRecording ? "暂停实时记录" : "继续实时记录";
-  els.liveState.textContent = isRecording ? (isCameraActive ? "摄像头录制中" : "记录中") : (isCameraActive ? "摄像头已接入" : "已暂停");
-  var hasMedia = els.videoFeed.classList.contains("has-upload") || els.videoFeed.classList.contains("has-camera");
-  updateCaptureStatus(isRecording, hasMedia);
-
-  if (isRecording) {
-    addTranscriptLine();
-    timerId = window.setInterval(function() {
-      secondsLeft = Math.max(0, secondsLeft - 1);
-      updateTimer();
-    }, 1000);
-  } else {
-    window.clearInterval(timerId);
-    updateCaptureStatus(false, hasMedia);
+// ★ 启动录制计时器（每秒更新 UI）
+function startRecordingTimer() {
+  recordingStartTime = Date.now();
+  function tick() {
+    var elapsed = Math.floor((Date.now() - recordingStartTime) / 1000);
+    var mins = Math.floor(elapsed / 60);
+    var secs = elapsed % 60;
+    var timeStr = String(mins).padStart(2, '0') + ':' + String(secs).padStart(2, '0');
+    els.recordingTimer.textContent = timeStr;
+    els.recordStatus.textContent = '录制时长：' + timeStr;
   }
+  tick(); // 立即显示
+  recordingElapsedId = setInterval(tick, 1000);
+}
+
+// ★ 停止录制计时器
+function stopRecordingTimer() {
+  if (recordingElapsedId) {
+    clearInterval(recordingElapsedId);
+    recordingElapsedId = null;
+  }
+  recordingStartTime = null;
+  els.recordingIndicator.style.display = 'none';
+  els.recordStatus.style.display = 'none';
+  if (els.captureStatus) els.captureStatus.classList.remove('recording-active');
+}
+
+// ★ 生成时间戳字符串（用于文件名）
+function getTimestampString() {
+  var now = new Date();
+  return now.getFullYear()
+    + String(now.getMonth() + 1).padStart(2, '0')
+    + String(now.getDate()).padStart(2, '0')
+    + '_'
+    + String(now.getHours()).padStart(2, '0')
+    + String(now.getMinutes()).padStart(2, '0')
+    + String(now.getSeconds()).padStart(2, '0');
+}
+
+async function startRecording() {
+  const recordBtn = document.getElementById("recordBtn");
+
+  if (!isRecording) {
+    // ===== 开始录制 =====
+    try {
+      // 1. 如果尚未开启摄像头，先开启（同时获取音视频流）
+      if (!isCameraActive) {
+        await startCameraInternal();
+      }
+
+      // 2. 确保有媒体流可用
+      if (!cameraStream) {
+        showToast('无法获取摄像头/麦克风，录制失败', 'error');
+        return;
+      }
+
+      // 3. 确定文件名前缀（调研编号 + 时间戳）
+      var timestamp = getTimestampString();
+      var filePrefix = currentSession ? currentSession.id + '_' + timestamp : 'recording_' + timestamp;
+
+      // 4. 启动视频录制（含音频轨道的完整流）
+      var videoMime = getSupportedMimeType('video');
+      mediaRecorder = new MediaRecorder(cameraStream, {
+        mimeType: videoMime,
+        videoBitsPerSecond: 2500000  // 2.5 Mbps
+      });
+      recordedVideoChunks = [];
+
+      mediaRecorder.ondataavailable = function(e) {
+        if (e.data && e.data.size > 0) {
+          recordedVideoChunks.push(e.data);
+        }
+      };
+
+      mediaRecorder.onstop = function() {
+        var videoBlob = new Blob(recordedVideoChunks, { type: mediaRecorder.mimeType });
+        var videoExt = getExtensionFromMime(mediaRecorder.mimeType);
+        saveFileToLocal(videoBlob, filePrefix + '_video.' + videoExt);
+        console.log('[录制] 视频已保存: ' + filePrefix + '_video.' + videoExt + ' (' + (videoBlob.size / 1024 / 1024).toFixed(1) + 'MB)');
+      };
+
+      // 每 5 秒收集一次数据块，确保不丢数据
+      mediaRecorder.start(5000);
+
+      // 5. 启动纯音频录制（单独保存一份音频文件）
+      try {
+        var audioTrack = cameraStream.getAudioTracks()[0];
+        if (audioTrack) {
+          var audioOnlyStream = new MediaStream([audioTrack]);
+          var audioMime = getSupportedMimeType('audio');
+          audioRecorder = new MediaRecorder(audioOnlyStream, {
+            mimeType: audioMime,
+            audioBitsPerSecond: 128000
+          });
+          recordedAudioChunks = [];
+
+          audioRecorder.ondataavailable = function(e) {
+            if (e.data && e.data.size > 0) {
+              recordedAudioChunks.push(e.data);
+            }
+          };
+
+          audioRecorder.onstop = function() {
+            var audioBlob = new Blob(recordedAudioChunks, { type: audioRecorder.mimeType });
+            var audioExt = getExtensionFromMime(audioRecorder.mimeType);
+            saveFileToLocal(audioBlob, filePrefix + '_audio.' + audioExt);
+            console.log('[录制] 音频已保存: ' + filePrefix + '_audio.' + audioExt + ' (' + (audioBlob.size / 1024 / 1024).toFixed(1) + 'MB)');
+          };
+
+          audioRecorder.start(5000);
+          console.log('[录制] 纯音频录制已启动');
+        }
+      } catch (audioErr) {
+        console.warn('[录制] 纯音频流创建失败，仅保存含音频的视频文件:', audioErr);
+      }
+
+      isRecording = true;
+      recordBtn.textContent = '暂停实时记录';
+      els.liveState.textContent = '录制中（视频+音频）';
+      updateCaptureStatus(true, true);
+
+      // ★ 显示录制指示灯和计时器
+      els.recordingIndicator.style.display = 'flex';
+      els.recordingTimer.textContent = '00:00';
+      els.recordStatus.style.display = '';
+      if (els.captureStatus) els.captureStatus.classList.add('recording-active');
+      startRecordingTimer();
+
+      // 6. 启动模拟转写 + 计时器
+      addTranscriptLine();
+      timerId = window.setInterval(function() {
+        secondsLeft = Math.max(0, secondsLeft - 1);
+        updateTimer();
+      }, 1000);
+
+      showToast('已开始录制，文件将保存为 ' + filePrefix + '_video / _audio', 'success');
+      console.log('[录制] MediaRecorder 已启动, MIME: ' + videoMime);
+
+    } catch (err) {
+      console.error('[录制] 启动失败:', err);
+      showToast('录制启动失败: ' + (err.message || '未知错误'), 'error');
+    }
+  } else {
+    // ===== 暂停录制（停止 MediaRecorder 并保存文件） =====
+    stopRecordingAndSave();
+  }
+}
+
+// ★ 停止录制并保存文件
+function stopRecordingAndSave() {
+  isRecording = false;
+
+  // ★ 停止录制计时器并隐藏指示灯
+  stopRecordingTimer();
+
+  var recordBtn = document.getElementById("recordBtn");
+  recordBtn.textContent = '开始实时记录';
+  els.liveState.textContent = isCameraActive ? '摄像头已接入' : '已暂停';
+
+  // 停止视频录制（onstop 会触发自动保存）
+  if (mediaRecorder && mediaRecorder.state !== 'inactive') {
+    mediaRecorder.stop();
+    console.log('[录制] 视频 MediaRecorder 已停止');
+  }
+
+  // 停止音频录制（onstop 会触发自动保存）
+  if (audioRecorder && audioRecorder.state !== 'inactive') {
+    audioRecorder.stop();
+    console.log('[录制] 音频 MediaRecorder 已停止');
+  }
+
+  // 清理定时器
+  if (timerId) {
+    window.clearInterval(timerId);
+    timerId = null;
+  }
+
+  var hasMedia = els.videoFeed.classList.contains('has-upload') || els.videoFeed.classList.contains('has-camera');
+  updateCaptureStatus(false, hasMedia);
+
+  // ★ 录制结束后提示文件保存位置
+  if (hasMedia) {
+    showToast('录制已停止，视频和音频文件已保存到本地', 'success');
+  }
+}
+
+// ★ 获取浏览器支持的 MIME 类型
+function getSupportedMimeType(kind) {
+  // 按优先顺序尝试
+  if (kind === 'video') {
+    var types = ['video/webm;codecs=vp8,opus', 'video/webm;codecs=vp9,opus', 'video/webm;codecs=vp8', 'video/webm', 'video/mp4'];
+  } else {
+    var types = ['audio/webm;codecs=opus', 'audio/webm', 'audio/ogg;codecs=opus', 'audio/mp4'];
+  }
+  for (var i = 0; i < types.length; i++) {
+    if (MediaRecorder.isTypeSupported(types[i])) {
+      return types[i];
+    }
+  }
+  // 兜底：不指定 mimeType，让浏览器自动选择
+  return kind === 'video' ? 'video/webm' : 'audio/webm';
+}
+
+// ★ 从 MIME 类型获取文件扩展名
+function getExtensionFromMime(mime) {
+  if (mime.indexOf('mp4') !== -1) return 'mp4';
+  if (mime.indexOf('ogg') !== -1) return 'ogg';
+  return 'webm';
+}
+
+// ★ 保存 Blob 到本地文件（触发浏览器下载）
+function saveFileToLocal(blob, filename) {
+  var url = URL.createObjectURL(blob);
+  var a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  a.style.display = 'none';
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  // 延迟释放 blob URL
+  setTimeout(function() {
+    URL.revokeObjectURL(url);
+  }, 1000);
+  console.log('[保存] 文件已触发下载: ' + filename + ' (' + (blob.size / 1024 / 1024).toFixed(2) + 'MB)');
 }
 
 function handleVideoUpload(event) {
@@ -1183,60 +1402,66 @@ function stopAudioVisualizer() {
 }
 
 // 开启摄像头
+// ★ 内部方法：获取摄像头+麦克风流（不处理 UI），供录制自动调用
+async function startCameraInternal() {
+  // 枚举可用设备
+  var cameras = await enumerateCameraDevices();
+  if (cameras.length === 0) {
+    throw new Error('未检测到可用摄像头设备');
+  }
+
+  // 如果已有流，先停止
+  if (cameraStream) {
+    stopCameraInternal();
+  }
+
+  var selectedDeviceId = els.cameraSelect.value;
+  var constraints = {
+    video: {
+      deviceId: selectedDeviceId ? { exact: selectedDeviceId } : undefined,
+      width: { ideal: 1280 },
+      height: { ideal: 720 },
+      facingMode: 'user'
+    },
+    audio: {
+      echoCancellation: true,
+      noiseSuppression: true,
+      autoGainControl: true
+    }
+  };
+
+  cameraStream = await navigator.mediaDevices.getUserMedia(constraints);
+  els.cameraPreview.srcObject = cameraStream;
+  isCameraActive = true;
+
+  // 更新 UI
+  els.videoFeed.classList.add('has-camera');
+  els.videoFeed.classList.remove('has-upload');
+  els.cameraControls.style.display = 'flex';
+  els.startCameraBtn.style.display = 'none';
+
+  // 启动音频可视化
+  startAudioVisualizer(cameraStream);
+
+  console.log('[摄像头] 内部启动完成');
+  return cameraStream;
+}
+
+// 公开方法：用户手动点击"开启摄像头"
 async function startCamera() {
   try {
-    // 枚举可用设备
-    var cameras = await enumerateCameraDevices();
-    if (cameras.length === 0) {
-      showToast('未检测到可用摄像头设备', 'warning');
-      return;
-    }
-
-    // 如果已有流，先停止
-    if (cameraStream) {
-      stopCameraInternal();
-    }
-
-    var selectedDeviceId = els.cameraSelect.value;
-    var constraints = {
-      video: {
-        deviceId: selectedDeviceId ? { exact: selectedDeviceId } : undefined,
-        width: { ideal: 1280 },
-        height: { ideal: 720 },
-        facingMode: 'user'
-      },
-      audio: {
-        echoCancellation: true,
-        noiseSuppression: true,
-        autoGainControl: true
-      }
-    };
-
-    cameraStream = await navigator.mediaDevices.getUserMedia(constraints);
-    els.cameraPreview.srcObject = cameraStream;
-
-    // 显示预览，隐藏占位面孔
-    els.videoFeed.classList.add('has-camera');
-    els.videoFeed.classList.remove('has-upload');
-    isCameraActive = true;
+    await startCameraInternal();
 
     // 自动切换到实时采集阶段
     if (currentSession) {
       setStage("live");
     }
 
-    // 显示控制栏
-    els.cameraControls.style.display = 'flex';
-    els.startCameraBtn.style.display = 'none';
-
-    // 启动音频可视化
-    startAudioVisualizer(cameraStream);
-
     // 更新状态
     updateCaptureStatus(isRecording, true);
-    els.liveState.textContent = '摄像头已接入';
+    els.liveState.textContent = isRecording ? '录制中（视频+音频）' : '摄像头已接入';
 
-    console.log('[摄像头] 已开启，设备数:', cameras.length);
+    console.log('[摄像头] 已开启');
     showToast('摄像头已开启，正在实时采集画面与声音', 'success');
   } catch (err) {
     console.error('[摄像头] 开启失败:', err);
@@ -1252,6 +1477,30 @@ async function startCamera() {
 
 // 内部停止方法
 function stopCameraInternal() {
+  // ★ 如果正在录制，先停止 MediaRecorder 并保存文件，再关闭摄像头轨道
+  if (isRecording) {
+    isRecording = false;
+    var recordBtn = document.getElementById("recordBtn");
+    if (recordBtn) recordBtn.textContent = '开始实时记录';
+
+    // 停止视频录制（先停止，触发 onstop → 保存视频文件）
+    if (mediaRecorder && mediaRecorder.state !== 'inactive') {
+      mediaRecorder.stop();
+      console.log('[录制] 摄像头关闭前 — 视频 MediaRecorder 已停止');
+    }
+
+    // 停止音频录制
+    if (audioRecorder && audioRecorder.state !== 'inactive') {
+      audioRecorder.stop();
+      console.log('[录制] 摄像头关闭前 — 音频 MediaRecorder 已停止');
+    }
+
+    // 清理计时器
+    window.clearInterval(timerId);
+    timerId = null;
+    stopRecordingTimer();
+  }
+
   if (cameraStream) {
     cameraStream.getTracks().forEach(function(track) { track.stop(); });
     cameraStream = null;
@@ -1274,8 +1523,8 @@ function stopCamera() {
   if (hasUpload) {
     els.videoFeed.classList.add('has-upload');
   }
-  updateCaptureStatus(isRecording, hasUpload);
-  els.liveState.textContent = isRecording ? '记录中' : '待开始';
+  updateCaptureStatus(false, hasUpload);
+  els.liveState.textContent = '待开始';
 
   console.log('[摄像头] 已关闭');
 }
@@ -1949,6 +2198,32 @@ function saveInsightDataDebounced() {
   _insightSaveTimer = setTimeout(saveInsightDataToCloud, 2000);
 }
 
+// ★★★ 强制立即保存（登出前调用，取消防抖并同步写入）★★★
+window.flushInsightSave = function() {
+  return new Promise(function(resolve) {
+    // 1) 取消等待中的防抖定时器
+    if (_insightSaveTimer) {
+      clearTimeout(_insightSaveTimer);
+      _insightSaveTimer = null;
+    }
+    // 2) 立即写 localStorage 紧急备份（同步操作，确保不丢数据）
+    try {
+      localStorage.setItem('vc_insight_backup', JSON.stringify({
+        researchSessions: researchSessions,
+        userSamples: userSamples,
+        timestamp: Date.now()
+      }));
+    } catch(e) {}
+    // 3) 调用云端保存
+    saveInsightDataToCloud();
+    // 4) 给网络请求 1.5 秒时间完成
+    setTimeout(function() {
+      console.log('[Insight] flush 完成');
+      resolve(true);
+    }, 1500);
+  });
+};
+
 // 加载：云端优先 → 本地 IndexedDB 兜底 → localStorage 兜底
 function loadInsightDataFromCloud() {
   return new Promise(function(resolve) {
@@ -1989,14 +2264,17 @@ function loadInsightDataFromCloud() {
 // 触发数据保存（在关键操作后调用）
 function triggerInsightSave() {
   saveInsightDataDebounced();
-  // 保留 localStorage 紧急备份
+  // 保留 localStorage 紧急备份 + beforeunload 备份
+  var backup = {
+    researchSessions: researchSessions,
+    userSamples: userSamples,
+    timestamp: Date.now()
+  };
   try {
-    localStorage.setItem('vc_insight_backup', JSON.stringify({
-      researchSessions: researchSessions,
-      userSamples: userSamples,
-      timestamp: Date.now()
-    }));
+    localStorage.setItem('vc_insight_backup', JSON.stringify(backup));
   } catch(e) {}
+  // 同时更新 beforeunload 紧急备份（供 sendBeacon 使用）
+  window._emergencyBackupData = backup;
 }
 
 // ===== 调研对象详细信息功能 =====

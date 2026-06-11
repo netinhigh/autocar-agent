@@ -42,6 +42,16 @@
       initSupabase();
       var result = await AuthGuard.protect(false);
       if (!result.authenticated && !result.devMode) return;
+
+      // ★ 设置当前用户 ID（供 StorageEngine IndexedDB key 隔离用）
+      try {
+        var currentUser = await window.Auth.getCurrentUser();
+        if (currentUser) {
+          window._currentUserId = currentUser.id;
+          localStorage.setItem('_curr_uid', currentUser.id);
+        }
+      } catch(e) {}
+
       // 从云端同步用户数据
       if (window.SharedDataStore) {
         await SharedDataStore.loadFromCloud();
