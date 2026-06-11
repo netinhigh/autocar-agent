@@ -64,13 +64,8 @@ const knowledgeItems = [];
 //    守卫在 <head> 中异步加载，到此处（<body> 底部）通常已完成
 //    如果尚未完成，app.js 启动后延迟加载
 var _restored = window._restoredInsightData;
-
-// ★★★ 先声明核心变量，再赋初值 —— 避免 TDZ 死区 ★★★
-let userSamples, researchSessions;
-
-// 初始赋值
-userSamples = (_restored && _restored.userSamples) ? _restored.userSamples : [];
-researchSessions = (_restored && _restored.researchSessions) ? _restored.researchSessions : [];
+let userSamples = (_restored && _restored.userSamples) ? _restored.userSamples : [];
+let researchSessions = (_restored && _restored.researchSessions) ? _restored.researchSessions : [];
 if (_restored) console.log('[数据恢复] userSamples: ' + userSamples.length + ' 条, researchSessions: ' + researchSessions.length + ' 场');
 
 // 如果守卫尚未完成数据加载，延迟重试（最多等待 5 秒）
@@ -165,8 +160,6 @@ window.triggerManualSync = function() {
   console.log('[手动同步] 完成。同步日志：', log);
   alert('已同步 ' + completedCount + ' 个已完成调研的用户样本到共享数据桥！\n虚拟消费者平台将自动检测并生成对应数字分身。');
 };
-
-// researchSessions 已在数据恢复段（约第66行）通过 let/赋值初始化，此处不再重复声明
 
 
 let transcriptIndex = 0;
@@ -377,45 +370,13 @@ function setStage(stage) {
 }
 
 function setView(view) {
-  console.log('[setView] → ' + view + ' (调用者: ' + (new Error().stack || '').split('\\n')[2]?.trim()?.replace(/^at /, '') + ')');
-  
   document.querySelectorAll(".nav-item").forEach((button) => {
     button.classList.toggle("active", button.dataset.view === view);
   });
-  
-  // ★★★ 双保险：class + inline style，彻底杜绝多个面板同时显示 ★★★
-  document.querySelectorAll(".work-panel").forEach((panel) => {
-    panel.classList.remove("active");
-    panel.style.display = "none";   // 强制隐藏所有面板
-  });
-  
+  document.querySelectorAll(".view").forEach((panel) => panel.classList.remove("active"));
   var target = document.getElementById(view);
-  if (target) {
-    target.classList.add("active");
-    target.style.display = "";      // 清除 inline style，让 CSS .work-panel.active { display: block } 生效
-    console.log('[setView] ✓ 已激活 #' + view + ' | 活跃面板数=' + document.querySelectorAll('.work-panel.active').length);
-  } else {
-    console.error('[setView] ✗ 目标面板 #' + view + ' 不存在！');
-  }
-  
+  if (target) target.classList.add("active");
   updateContextVisibility();
-  
-  // 异步验证：100ms 后确认没有多个面板同时 active
-  setTimeout(function() {
-    var activePanels = document.querySelectorAll('.work-panel.active');
-    if (activePanels.length > 1) {
-      console.error('[setView] ⚠️ 异常！检测到 ' + activePanels.length + ' 个面板同时活跃:', 
-        Array.from(activePanels).map(function(p) { return '#' + p.id; }).join(', '));
-      // 紧急修复：只保留目标视图
-      activePanels.forEach(function(p) {
-        if (p.id !== view) {
-          p.classList.remove('active');
-          p.style.display = 'none';
-          console.warn('[setView] 紧急修复：强制隐藏 #' + p.id);
-        }
-      });
-    }
-  }, 100);
 }
 
 function showSubNav(sessionId, sessionName, type = 'qual') {
@@ -2531,47 +2492,13 @@ function escapeHtml(str) {
   return div.innerHTML;
 }
 
-function showToast(msg, type) {
-  // 简单 toast 实现（如果已有 toast 函数则使用已有的）
-  if (typeof window.showToast === 'function') {
-    window.showToast(msg, type);
-    return;
-  }
-  var toast = document.createElement('div');
-  toast.textContent = msg;
-  toast.style.cssText = 'position:fixed;bottom:80px;left:50%;transform:translateX(-50%);padding:10px 24px;border-radius:8px;font-size:13px;z-index:99999;pointer-events:none;animation:fadeIn 0.3s ease;'
-    + (type === 'success' ? 'background:rgba(16,185,129,0.9);color:#fff;' :
-       type === 'error' ? 'background:rgba(239,68,68,0.9);color:#fff;' :
-       'background:rgba(59,130,246,0.9);color:#fff;');
-  document.body.appendChild(toast);
-  setTimeout(function () {
-    toast.style.opacity = '0';
-    toast.style.transition = 'opacity 0.3s';
-    setTimeout(function () { toast.remove(); }, 300);
-  }, 2500);
-}
 
-// ===== 调研阶段切换（使用 querySelectorAll，不会因为单个元素缺失而抛错） =====
+
 document.querySelectorAll(".segment").forEach((button) => {
   button.addEventListener("click", () => setStage(button.dataset.stage));
 });
 
-// ★ 防御性绑定：使用 safeBind 避免某个 el 缺失导致后续代码全部失效
-function safeBind(el, event, handler, label) {
-  if (!el) {
-    console.warn('[事件绑定] 跳过：' + (label || 'unknown') + ' — 元素不存在');
-    return false;
-  }
-  try {
-    el.addEventListener(event, handler);
-    return true;
-  } catch(e) {
-    console.error('[事件绑定] 失败：' + (label || 'unknown'), e);
-    return false;
-  }
-}
-
-safeBind(els.closeSessionBtn, "click", closeSessionDetail, "closeSessionBtn");
+els.closeSessionBtn.addEventListener("click", closeSessionDetail);
 
 document.getElementById("briefForm").addEventListener("submit", generateOutline);
 document.getElementById("recordBtn").addEventListener("click", startRecording);
@@ -2579,152 +2506,44 @@ document.getElementById("nextLineBtn").addEventListener("click", addTranscriptLi
 document.getElementById("videoUpload").addEventListener("change", handleVideoUpload);
 document.getElementById("copyTranscriptBtn").addEventListener("click", copyTranscript);
 document.getElementById("clearTranscriptBtn").addEventListener("click", clearTranscript);
-safeBind(els.selectStorageDirBtn, "click", selectStorageDir, "selectStorageDirBtn");
-safeBind(els.startSessionBtn, "click", startPendingSession, "startSessionBtn");
+els.selectStorageDirBtn.addEventListener("click", selectStorageDir);
+els.startSessionBtn.addEventListener("click", startPendingSession);
 
 // 准备锁定/解锁事件
-safeBind(els.lockBtn, "click", function() {
+els.lockBtn.addEventListener("click", function() {
   if (preparationLocked) {
     showUnlockModal();
   } else {
     lockPreparation();
   }
-}, "lockBtn");
-safeBind(els.closeUnlockModalBtn, "click", hideUnlockModal, "closeUnlockModalBtn");
-safeBind(els.cancelUnlockBtn, "click", hideUnlockModal, "cancelUnlockBtn");
-safeBind(els.confirmUnlockBtn, "click", verifyAndUnlock, "confirmUnlockBtn");
-safeBind(els.unlockPasswordInput, "keydown", function(e) {
+});
+els.closeUnlockModalBtn.addEventListener("click", hideUnlockModal);
+els.cancelUnlockBtn.addEventListener("click", hideUnlockModal);
+els.confirmUnlockBtn.addEventListener("click", verifyAndUnlock);
+els.unlockPasswordInput.addEventListener("keydown", function(e) {
   if (e.key === 'Enter') verifyAndUnlock();
-}, "unlockPasswordInput");
+});
 // 点击弹窗遮罩关闭
-safeBind(els.unlockModal, "click", function(e) {
+els.unlockModal.addEventListener("click", function(e) {
   if (e.target === els.unlockModal) hideUnlockModal();
-}, "unlockModal");
+});
 
-safeBind(document.getElementById("generateReportBtn"), "click", renderReport, "generateReportBtn");
-safeBind(document.getElementById("resetBtn"), "click", resetDemo, "resetBtn");
-var _msb = document.getElementById("manualSyncBtn");
-if (_msb) _msb.addEventListener("click", function() {
+document.getElementById("generateReportBtn").addEventListener("click", renderReport);
+document.getElementById("resetBtn").addEventListener("click", resetDemo);
+document.getElementById("manualSyncBtn")?.addEventListener("click", function() {
   autoSyncUserSamplesToBridge();
   var completedCount = getCompletedUserSamples().length;
   alert('已同步 ' + completedCount + ' 个已完成调研的用户样本到共享数据桥！\n虚拟消费者平台将自动检测并生成对应数字分身。');
 });
-safeBind(document.getElementById("editOutlineBtn"), "click", function() {
+document.getElementById("editOutlineBtn").addEventListener("click", () => {
   els.outlineList.querySelector("li")?.focus();
-}, "editOutlineBtn");
-
-// ★★★ 所有初始化渲染，每个函数独立 try-catch 保护 ★★★
-console.log('[初始化] 开始渲染页面...');
-
-function safeRender(name, fn) {
-  try {
-    console.log('[初始化] 渲染 ' + name + '...');
-    fn();
-  } catch(e) {
-    console.error('[初始化] ✗ ' + name + ' 渲染失败:', e.message, e.stack);
-  }
-}
-
-safeRender('sessionFilters',   function() { renderSessionFilters(); });
-safeRender('sessions',         function() { renderSessions(); });
-safeRender('outline',          function() { renderOutline(); });
-safeRender('questions',        function() { renderQuestions(); });
-safeRender('persona',          function() { renderPersona(); });
-safeRender('competitors',      function() { renderCompetitors(); });
-safeRender('strategies',       function() { renderStrategies(); });
-safeRender('knowledge',        function() { renderKnowledge(); });
-
-try { updateProgress(progress); } catch(e) { console.error('[初始化] updateProgress 失败:', e.message); }
-try { updateTimer(); } catch(e) { console.error('[初始化] updateTimer 失败:', e.message); }
-try { updateCaptureStatus(false, false); } catch(e) { console.error('[初始化] updateCaptureStatus 失败:', e.message); }
-
-// ★ 初始化视图：强制只显示 overview 面板
-console.log('[初始化] 设置视图为 overview...');
-setView("overview");
-try { setStage("prepare"); } catch(e) { console.error('[初始化] setStage 失败:', e.message); }
-try { updateContextVisibility(); } catch(e) { console.error('[初始化] updateContextVisibility 失败:', e.message); }
-
-// ★★★ 最终强制检查：确保不要有两个面板同时活跃 ★★★
-(function enforceSingleView() {
-  var allPanels = document.querySelectorAll('.work-panel');
-  var activeCount = 0;
-  allPanels.forEach(function(p) {
-    if (p.classList.contains('active')) {
-      activeCount++;
-      if (activeCount > 1 || p.id !== 'overview') {
-        console.warn('[初始化] 修复异常活跃面板: #' + p.id);
-        p.classList.remove('active');
-        p.style.display = 'none';
-      }
-    }
-  });
-  // 确保 overview 是活跃的
-  var overviewPanel = document.getElementById('overview');
-  if (overviewPanel && !overviewPanel.classList.contains('active')) {
-    overviewPanel.classList.add('active');
-    overviewPanel.style.display = '';
-  }
-  console.log('[初始化] 渲染完成 — 活跃工作面板数=' + document.querySelectorAll('.work-panel.active').length);
-})();
-
-// ★★★ MutationObserver：持续监控整个 body 中 work-panel 的 class 变化 ★★★
-(function setupPanelMonitor() {
-  var observer = new MutationObserver(function(mutations) {
-    mutations.forEach(function(mutation) {
-      if (mutation.type === 'attributes' && mutation.attributeName === 'class') {
-        if (mutation.target.classList.contains('work-panel') && mutation.target.classList.contains('active')) {
-          // 检查是否已有其他活跃面板
-          var otherActive = document.querySelector('.work-panel.active:not(#' + mutation.target.id + ')');
-          if (otherActive) {
-            console.error('[PanelsGuard] ⚠️ 检测到面板重叠！当前激活面板:', 
-              '#' + mutation.target.id, '和 #' + otherActive.id);
-            // 隐藏非预期的活跃面板
-            if (otherActive.id !== mutation.target.id) {
-              otherActive.classList.remove('active');
-              otherActive.style.display = 'none';
-              console.warn('[PanelsGuard] 已自动修复：隐藏 #' + otherActive.id);
-            }
-          }
-        }
-      }
-    });
-  });
-  
-  observer.observe(document.body, { 
-    attributes: true, 
-    attributeFilter: ['class'], 
-    subtree: true 
-  });
-  console.log('[PanelsGuard] 面板监控已启动');
-})();
-
-// 延迟二次检查（500ms 和 1500ms 后），捕获任何异步触发的视图切换
-[500, 1500].forEach(function(delay) {
-  setTimeout(function() {
-    var activePanels = document.querySelectorAll('.work-panel.active');
-    if (activePanels.length > 1) {
-      console.error('[PanelsGuard] ' + delay + 'ms 检查：发现 ' + activePanels.length + ' 个面板重叠！',
-        Array.from(activePanels).map(function(p) { return '#' + p.id; }).join(', '));
-      // 只保留第一个（通常是 overview）
-      activePanels.forEach(function(p, i) {
-        if (i > 0) {
-          p.classList.remove('active');
-          p.style.display = 'none';
-        }
-      });
-      console.warn('[PanelsGuard] 已修复：仅保留 #' + activePanels[0].id);
-    } else {
-      console.log('[PanelsGuard] ' + delay + 'ms 检查：正常 (1个活跃面板: #' + 
-        (activePanels[0] ? activePanels[0].id : 'none') + ')');
-    }
-  }, delay);
 });
-
-// ===== 事件绑定（续） =====
-
-safeBind(els.productFilter, "change", renderSessions, "productFilter");
-safeBind(els.typeFilter, "change", renderSessions, "typeFilter");
-safeBind(els.sessionFilter, "change", renderSessions, "sessionFilter");
+document.getElementById("knowledgeSearch").addEventListener("input", (event) => {
+  renderKnowledge(event.target.value);
+});
+els.productFilter.addEventListener("change", renderSessions);
+els.typeFilter.addEventListener("change", renderSessions);
+els.sessionFilter.addEventListener("change", renderSessions);
 document.getElementById("clearFiltersBtn").addEventListener("click", () => {
   els.productFilter.value = "";
   els.typeFilter.value = "";
@@ -2733,18 +2552,18 @@ document.getElementById("clearFiltersBtn").addEventListener("click", () => {
 });
 
 // 新建调研弹窗事件
-safeBind(els.newSessionBtn, "click", showNewSessionModal, "newSessionBtn");
-safeBind(els.closeModalBtn, "click", hideNewSessionModal, "closeModalBtn");
-safeBind(els.cancelNewSessionBtn, "click", hideNewSessionModal, "cancelNewSessionBtn");
-safeBind(els.newSessionModal, "click", function(e) {
+els.newSessionBtn.addEventListener("click", showNewSessionModal);
+els.closeModalBtn.addEventListener("click", hideNewSessionModal);
+els.cancelNewSessionBtn.addEventListener("click", hideNewSessionModal);
+els.newSessionModal.addEventListener("click", function(e) {
   if (e.target === els.newSessionModal) hideNewSessionModal();
-}, "newSessionModal");
-safeBind(els.newSessionForm, "submit", handleNewSessionSubmit, "newSessionForm");
+});
+els.newSessionForm.addEventListener("submit", handleNewSessionSubmit);
 
 // 摄像头事件
-safeBind(els.startCameraBtn, "click", startCamera, "startCameraBtn");
-safeBind(els.stopCameraBtn, "click", stopCamera, "stopCameraBtn");
-safeBind(els.cameraSelect, "change", switchCamera, "cameraSelect");
+els.startCameraBtn.addEventListener("click", startCamera);
+els.stopCameraBtn.addEventListener("click", stopCamera);
+els.cameraSelect.addEventListener("change", switchCamera);
 
 // ---- 说话人切换 ----
 function switchSpeaker(role) {
@@ -2762,48 +2581,59 @@ function switchSpeaker(role) {
 }
 
 // ---- AI 分析事件绑定 ----
-safeBind(els.aiToggleBtn, "click", toggleAI, "aiToggleBtn");
-safeBind(els.aiSettingsBtn, "click", function () {
+els.aiToggleBtn.addEventListener("click", toggleAI);
+els.aiSettingsBtn.addEventListener("click", function () {
   var body = els.aiSettingsBody;
   body.style.display = body.style.display === 'none' ? 'block' : 'none';
-}, "aiSettingsBtn");
-safeBind(els.aiProvider, "change", function () {
+});
+els.aiProvider.addEventListener("change", function () {
   aiConfig.provider = els.aiProvider.value;
   els.aiCustomUrlLabel.style.display = aiConfig.provider === 'custom' ? '' : 'none';
   els.aiModelName.value = getDefaultModel(aiConfig.provider);
-}, "aiProvider");
-safeBind(els.aiSaveSettingsBtn, "click", handleAISettingsSave, "aiSaveSettingsBtn");
-safeBind(els.aiTestConnBtn, "click", handleAITestConnection, "aiTestConnBtn");
+});
+els.aiSaveSettingsBtn.addEventListener("click", handleAISettingsSave);
+els.aiTestConnBtn.addEventListener("click", handleAITestConnection);
 
 // 说话人切换按钮
-safeBind(els.speakerUserBtn, "click", function () { switchSpeaker('用户'); }, "speakerUserBtn");
-safeBind(els.speakerHostBtn, "click", function () { switchSpeaker('主持人'); }, "speakerHostBtn");
+els.speakerUserBtn.addEventListener("click", function () { switchSpeaker('用户'); });
+els.speakerHostBtn.addEventListener("click", function () { switchSpeaker('主持人'); });
 
 // AI 自动识别说话人复选框
 var speakerAutoCheck = document.getElementById('speakerAutoCheck');
 var speakerAutoLabel = document.getElementById('speakerAutoLabel');
-if (speakerAutoCheck) {
-  speakerAutoCheck.addEventListener('change', function () {
-    autoDetectSpeaker = this.checked;
-    if (autoDetectSpeaker && !aiConfig.apiKey) {
-      showToast('请先配置 LLM API Key 才能使用 AI 自动识别', 'error');
-      this.checked = false;
-      autoDetectSpeaker = false;
-      return;
-    }
-    showToast(autoDetectSpeaker ? 'AI 自动识别说话人已启用' : '已切换到手动模式', 'info');
-  });
-}
+speakerAutoCheck.addEventListener('change', function () {
+  autoDetectSpeaker = this.checked;
+  if (autoDetectSpeaker && !aiConfig.apiKey) {
+    showToast('请先配置 LLM API Key 才能使用 AI 自动识别', 'error');
+    this.checked = false;
+    autoDetectSpeaker = false;
+    return;
+  }
+  showToast(autoDetectSpeaker ? 'AI 自动识别说话人已启用' : '已切换到手动模式', 'info');
+});
 // 更新复选框状态
 function updateAutoDetectState() {
   var hasKey = !!aiConfig.apiKey;
-  if (speakerAutoCheck) speakerAutoCheck.disabled = !aiEnabled || !hasKey;
-  if (speakerAutoLabel) speakerAutoLabel.className = 'speaker-auto-label' + (aiEnabled && hasKey ? ' enabled' : '');
+  speakerAutoCheck.disabled = !aiEnabled || !hasKey;
+  speakerAutoLabel.className = 'speaker-auto-label' + (aiEnabled && hasKey ? ' enabled' : '');
   if (!aiEnabled || !hasKey) {
-    if (speakerAutoCheck) speakerAutoCheck.checked = false;
+    speakerAutoCheck.checked = false;
     autoDetectSpeaker = false;
   }
 }
+
+renderSessionFilters();
+renderSessions();
+renderOutline();
+renderQuestions();
+renderPersona();
+renderCompetitors();
+renderStrategies();
+renderKnowledge();
+updateProgress(progress);
+updateTimer();
+updateCaptureStatus(false, false);
+updateContextVisibility();
 
 // 加载 AI 分析配置
 loadAIConfig();
@@ -4287,6 +4117,7 @@ window.removeQuestion = removeQuestion;
 // ===== 初始化定量调研模块 =====
 renderSurveys();
 renderUserSamples();
+renderSessions();
 
 // ===== 用户详情页功能 =====
 let currentDetailUser = null;
