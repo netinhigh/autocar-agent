@@ -64,8 +64,14 @@ const knowledgeItems = [];
 //    守卫在 <head> 中异步加载，到此处（<body> 底部）通常已完成
 //    如果尚未完成，app.js 启动后延迟加载
 var _restored = window._restoredInsightData;
-let userSamples = (_restored && _restored.userSamples) ? _restored.userSamples : [];
-if (_restored) console.log('[数据恢复] userSamples: ' + userSamples.length + ' 条');
+
+// ★★★ 先声明核心变量，再赋初值 —— 避免 TDZ 死区 ★★★
+let userSamples, researchSessions;
+
+// 初始赋值
+userSamples = (_restored && _restored.userSamples) ? _restored.userSamples : [];
+researchSessions = (_restored && _restored.researchSessions) ? _restored.researchSessions : [];
+if (_restored) console.log('[数据恢复] userSamples: ' + userSamples.length + ' 条, researchSessions: ' + researchSessions.length + ' 场');
 
 // 如果守卫尚未完成数据加载，延迟重试（最多等待 5 秒）
 if (!_restored && window.SUPABASE_READY) {
@@ -160,8 +166,7 @@ window.triggerManualSync = function() {
   alert('已同步 ' + completedCount + ' 个已完成调研的用户样本到共享数据桥！\n虚拟消费者平台将自动检测并生成对应数字分身。');
 };
 
-let researchSessions = (_restored && _restored.researchSessions) ? _restored.researchSessions : [];
-if (_restored) console.log('[数据恢复] researchSessions: ' + researchSessions.length + ' 场');
+// researchSessions 已在数据恢复段（约第66行）通过 let/赋值初始化，此处不再重复声明
 
 
 let transcriptIndex = 0;
@@ -2652,6 +2657,10 @@ renderKnowledge();
 updateProgress(progress);
 updateTimer();
 updateCaptureStatus(false, false);
+
+// ★ 初始化视图：确保只显示 overview 面板
+setView("overview");
+setStage("prepare");
 updateContextVisibility();
 
 // 加载 AI 分析配置
