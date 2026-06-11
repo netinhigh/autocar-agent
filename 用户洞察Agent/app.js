@@ -1826,19 +1826,28 @@ function removeQuestion(idx) {
 
 // ===== 定量调研模块数据结束 =====
 
-// ===== 用户数据持久化 =====
+// ===== 用户数据持久化（双存储引擎：IndexedDB本地 + Supabase云端）=====
 
-// 保存用户洞察数据到 Supabase 云端
+// 保存到 IndexedDB 本地 + Supabase 云端（100MB 配额）
 function saveInsightDataToCloud() {
-  if (!window.SUPABASE_READY || !window.Auth) return;
-  try {
-    window.Auth.saveUserData('insight_data', {
-      researchSessions: researchSessions,
-      userSamples: userSamples
-    });
-  } catch(e) {
-    console.warn('[Insight] 云端保存失败:', e.message);
+  if (!window.StorageEngine) {
+    // 降级：直接写 Supabase
+    if (window.SUPABASE_READY && window.Auth) {
+      window.Auth.saveUserData('insight_data', {
+        researchSessions: researchSessions,
+        userSamples: userSamples
+      });
+    }
+    return;
   }
+  StorageEngine.save('insight_data', {
+    researchSessions: researchSessions,
+    userSamples: userSamples
+  }).then(function(r) {
+    if (r.cloud && !r.cloud.ok) {
+      console.warn('[Insight] 云端跳过:', r.cloudSkipped, '| 数据已存本地');
+    }
+  });
 }
 
 // 防抖版保存（避免频繁请求）
@@ -1848,22 +1857,34 @@ function saveInsightDataDebounced() {
   _insightSaveTimer = setTimeout(saveInsightDataToCloud, 2000);
 }
 
-// 从 Supabase 云端加载用户洞察数据
+// 加载：云端优先 → 本地 IndexedDB 兜底 → localStorage 兜底
 function loadInsightDataFromCloud() {
   return new Promise(function(resolve) {
-    if (!window.SUPABASE_READY || !window.Auth) {
-      console.log('[Insight] Supabase 未就绪，使用本地初始数据');
-      resolve(false);
+    if (window.StorageEngine) {
+      StorageEngine.load('insight_data').then(function(r) {
+        if (r && r.data) {
+          researchSessions = r.data.researchSessions || [];
+          userSamples = r.data.userSamples || [];
+          console.log('[Insight] 加载 (来源=' + r.source + '): ' + researchSessions.length + ' 场次, ' + userSamples.length + ' 样本');
+          resolve(true);
+        } else {
+          console.log('[Insight] 无历史数据');
+          resolve(false);
+        }
+      });
       return;
     }
+
+    // 降级：旧版云端加载
+    if (!window.SUPABASE_READY || !window.Auth) { resolve(false); return; }
     window.Auth.loadUserData('insight_data').then(function(data) {
       if (data) {
         researchSessions = data.researchSessions || [];
         userSamples = data.userSamples || [];
-        console.log('[Insight] 已从云端恢复数据：' + researchSessions.length + ' 个调研场次，' + userSamples.length + ' 个用户样本');
+        console.log('[Insight] 已从云端恢复：' + researchSessions.length + ' 场次, ' + userSamples.length + ' 样本');
         resolve(true);
       } else {
-        console.log('[Insight] 云端无历史数据，使用初始空数据');
+        console.log('[Insight] 云端无历史数据');
         resolve(false);
       }
     }).catch(function(e) {
@@ -1876,7 +1897,7 @@ function loadInsightDataFromCloud() {
 // 触发数据保存（在关键操作后调用）
 function triggerInsightSave() {
   saveInsightDataDebounced();
-  // 同时立即保存一份到 localStorage 作为备份
+  // 保留 localStorage 紧急备份
   try {
     localStorage.setItem('vc_insight_backup', JSON.stringify({
       researchSessions: researchSessions,

@@ -445,116 +445,119 @@ var SharedDataStore = (function() {
     dtVersion: 0
   };
 
-  // 使用localStorage持久化
+  // 使用 localStorage 保留版本号和轻量元数据（跨标签页检测用）
   var STORAGE_KEY = 'vc_ui_shared_data';
-  // ★ 版本号专用 key（独立存储，方便跨标签页检测）
   var VERSION_KEY = 'vc_ui_data_version';
   
-  // ★ 云端同步相关
+  // ★ 双存储引擎：StorageEngine（IndexedDB 本地 + Supabase 云端）
   var cloudSyncTimer = null;
-  var CLOUD_SYNC_DEBOUNCE_MS = 2000; // 2秒防抖
+  var CLOUD_SYNC_DEBOUNCE_MS = 2000;
   var cloudLoaded = false;
+  var _engineReady = false;
+
+  // 构建数据快照
+  function _buildSnapshot() {
+    return {
+      userSamples: store.userSamples,
+      syncedDigitalTwins: store.syncedDigitalTwins,
+      virtualConsumers: store.virtualConsumers,
+      lastSyncTime: store.lastSyncTime,
+      dataVersion: store.dataVersion,
+      dtVersion: store.dtVersion
+    };
+  }
+
+  // 从快照恢复内存
+  function _applySnapshot(snap) {
+    if (!snap) return;
+    store.userSamples = snap.userSamples || [];
+    store.syncedDigitalTwins = snap.syncedDigitalTwins || [];
+    store.virtualConsumers = snap.virtualConsumers || [];
+    store.lastSyncTime = snap.lastSyncTime || null;
+    store.dataVersion = snap.dataVersion || 0;
+    store.dtVersion = snap.dtVersion || 0;
+  }
 
   function save() {
+    var snap = _buildSnapshot();
+
+    // 1) 轻量 localStorage 备胎（跨标签页检测 + 紧急回退）
     try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify({
-        userSamples: store.userSamples,
-        syncedDigitalTwins: store.syncedDigitalTwins,
-        virtualConsumers: store.virtualConsumers,
-        lastSyncTime: store.lastSyncTime,
-        syncLog: store.syncLog.slice(-50), // 保留最近50条
-        dataVersion: store.dataVersion,
-        dtVersion: store.dtVersion
-      }));
-      // ★ 同时更新版本号专用 key，用于跨标签页变更检测
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(snap));
       localStorage.setItem(VERSION_KEY, JSON.stringify({
         dataVersion: store.dataVersion,
         dtVersion: store.dtVersion,
         timestamp: Date.now()
       }));
-      
-      // ★ 同时触发云端同步（防抖）
+    } catch(e) {}
+
+    // 2) 双存储引擎：IndexedDB 本地 + Supabase 云端
+    if (window.StorageEngine) {
+      StorageEngine.save('shared_store', snap).then(function(r) {
+        if (!r.local) console.warn('[SharedDataStore] 本地写入失败');
+        if (r.cloud && !r.cloud.ok) {
+          console.warn('[SharedDataStore] 云端写入跳过:', r.cloudSkipped);
+        }
+      });
+    } else {
+      // 降级：仅云端防抖保存
       saveToCloudDebounced();
-    } catch(e) {
-      console.warn('SharedDataStore save failed:', e);
     }
   }
 
-  // ★ 云端保存（自动同步用户数据到 Supabase）
+  // ★ 云端防抖保存（降级方案）
   function saveToCloudDebounced() {
     if (!window.SUPABASE_READY) return;
     if (cloudSyncTimer) clearTimeout(cloudSyncTimer);
     cloudSyncTimer = setTimeout(function() {
-      saveToCloud();
+      if (window.Auth) {
+        window.Auth.saveUserData('shared_store', _buildSnapshot());
+        console.log('[SharedDataStore] 云端降级同步完成');
+      }
     }, CLOUD_SYNC_DEBOUNCE_MS);
   }
 
-  function saveToCloud() {
-    if (!window.SUPABASE_READY || !window.Auth) return;
-    
-    try {
-      window.Auth.saveUserData('shared_store', {
-        userSamples: store.userSamples,
-        syncedDigitalTwins: store.syncedDigitalTwins,
-        virtualConsumers: store.virtualConsumers,
-        lastSyncTime: store.lastSyncTime,
-        dataVersion: store.dataVersion,
-        dtVersion: store.dtVersion
-      });
-      console.log('[SharedDataStore] 数据已同步到云端');
-    } catch(e) {
-      console.warn('[SharedDataStore] 云端同步失败:', e.message);
-    }
-  }
-
-  // ★ 从云端加载数据（用户登录后调用）
+  // ★ 加载：云端优先 → 本地 IndexedDB 兜底 → localStorage 兜底
   function loadFromCloud() {
     return new Promise(function(resolve) {
-      if (!window.SUPABASE_READY || !window.Auth) {
-        resolve(false);
+      // 优先使用 StorageEngine.load（云→本地 级联）
+      if (window.StorageEngine) {
+        StorageEngine.load('shared_store').then(function(r) {
+          if (r && r.data) {
+            _applySnapshot(r.data);
+            cloudLoaded = true;
+            console.log('[SharedDataStore] 加载成功 (来源=' + r.source + ', v' + store.dataVersion + ')');
+            resolve(true);
+          } else {
+            // 全部失败，尝试 localStorage 兜底
+            _loadFromLocalStorage();
+            resolve(false);
+          }
+        });
         return;
       }
-      
-      window.Auth.loadUserData('shared_store').then(function(cloudData) {
-        if (cloudData) {
-          store.userSamples = cloudData.userSamples || [];
-          store.syncedDigitalTwins = cloudData.syncedDigitalTwins || [];
-          store.virtualConsumers = cloudData.virtualConsumers || [];
-          store.lastSyncTime = cloudData.lastSyncTime || null;
-          store.dataVersion = cloudData.dataVersion || 0;
-          store.dtVersion = cloudData.dtVersion || 0;
-          cloudLoaded = true;
-          console.log('[SharedDataStore] 已从云端加载数据 (v' + store.dataVersion + ')');
-          resolve(true);
-        } else {
-          resolve(false);
-        }
-      }).catch(function(e) {
-        console.warn('[SharedDataStore] 云端加载失败:', e.message);
-        resolve(false);
-      });
+
+      // 降级：旧版云端加载
+      if (!window.SUPABASE_READY || !window.Auth) { resolve(false); return; }
+      window.Auth.loadUserData('shared_store').then(function(d) {
+        if (d) { _applySnapshot(d); cloudLoaded = true; resolve(true); }
+        else { _loadFromLocalStorage(); resolve(false); }
+      }).catch(function() { _loadFromLocalStorage(); resolve(false); });
     });
   }
 
-  function load() {
+  function _loadFromLocalStorage() {
     try {
       var saved = localStorage.getItem(STORAGE_KEY);
-      if (saved) {
-        var data = JSON.parse(saved);
-        store.userSamples = data.userSamples || [];
-        store.syncedDigitalTwins = data.syncedDigitalTwins || [];
-        store.virtualConsumers = data.virtualConsumers || [];
-        store.lastSyncTime = data.lastSyncTime;
-        store.syncLog = data.syncLog || [];
-        store.dataVersion = data.dataVersion || 0;
-        store.dtVersion = data.dtVersion || 0;
-      }
-    } catch(e) {
-      console.warn('SharedDataStore load failed:', e);
-    }
+      if (saved) _applySnapshot(JSON.parse(saved));
+    } catch(e) {}
   }
 
-  // 初始化时加载本地数据
+  function load() {
+    _loadFromLocalStorage();
+  }
+
+  // 初始化时加载本地 localStorage 数据（快速启动）
   load();
 
   return {

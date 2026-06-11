@@ -68,16 +68,16 @@ window.Auth = {
       await this._logAction(user.id, 'logout', 'login', {});
     }
     
-    // ★ 登出时不清除云端数据，仅清除本地 localStorage 中的共享数据
-    //    用户数据已保存在 Supabase 云端，下次登录会自动恢复
-    if (window.SharedDataStore) {
-      try {
-        localStorage.removeItem('vc_ui_shared_data');
-        localStorage.removeItem('vc_ui_data_version');
-        localStorage.removeItem('vc_insight_backup');
-        console.log('[Auth] 已清除本地缓存，云端数据保留');
-      } catch(e) {}
+    // ★ 清除本地 IndexedDB + localStorage 缓存，云端数据完整保留
+    if (window.StorageEngine) {
+      StorageEngine.clearLocal();
     }
+    try {
+      localStorage.removeItem('vc_ui_shared_data');
+      localStorage.removeItem('vc_ui_data_version');
+      localStorage.removeItem('vc_insight_backup');
+    } catch(e) {}
+    console.log('[Auth] 本地缓存已清除，云端数据保留');
     
     await client.auth.signOut();
     window.location.href = 'login.html';
@@ -151,6 +151,10 @@ window.Auth = {
     
     var client = this.getClient();
     
+    // 计算数据字节大小
+    var sizeBytes = 0;
+    try { sizeBytes = new Blob([JSON.stringify(dataValue)]).size; } catch(e) {}
+    
     // upsert 操作
     var result = await client
       .from('user_data')
@@ -158,6 +162,7 @@ window.Auth = {
         user_id: user.id,
         data_key: dataKey,
         data_value: dataValue,
+        data_size_bytes: sizeBytes,
         updated_at: new Date().toISOString()
       }, {
         onConflict: 'user_id, data_key'
@@ -166,6 +171,36 @@ window.Auth = {
     if (result.error) {
       console.error('[Auth] 保存数据失败:', result.error.message);
     }
+  },
+
+  // 获取用户云端总存储用量（字节）
+  getStorageUsage: async function() {
+    var user = await this.getCurrentUser();
+    if (!user) return 0;
+    
+    var client = this.getClient();
+    var result = await client
+      .from('user_data')
+      .select('data_size_bytes')
+      .eq('user_id', user.id);
+    
+    if (result.error || !result.data) return 0;
+    var total = 0;
+    result.data.forEach(function(row) { total += (row.data_size_bytes || 0); });
+    return total;
+  },
+
+  // 删除用户云端数据（释放空间）
+  deleteUserData: async function(dataKey) {
+    var user = await this.getCurrentUser();
+    if (!user) return;
+    
+    var client = this.getClient();
+    await client
+      .from('user_data')
+      .delete()
+      .eq('user_id', user.id)
+      .eq('data_key', dataKey);
   },
 
   // 从 Supabase 加载用户数据

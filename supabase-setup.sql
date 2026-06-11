@@ -22,9 +22,23 @@ CREATE TABLE IF NOT EXISTS user_data (
   user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
   data_key TEXT NOT NULL,
   data_value JSONB DEFAULT '{}'::jsonb,
+  data_size_bytes BIGINT DEFAULT 0,
   updated_at TIMESTAMPTZ DEFAULT NOW(),
   UNIQUE(user_id, data_key)
 );
+
+-- 迁移：已有数据库补充 data_size_bytes 列
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_name = 'user_data' AND column_name = 'data_size_bytes'
+  ) THEN
+    ALTER TABLE user_data ADD COLUMN data_size_bytes BIGINT DEFAULT 0;
+    -- 回填已有数据的字节数
+    UPDATE user_data SET data_size_bytes = octet_length(data_value::text) WHERE data_size_bytes = 0;
+  END IF;
+END $$;
 
 -- 3. 创建 usage_logs 表（操作日志）
 -- ============================================================
@@ -139,7 +153,7 @@ CREATE TRIGGER on_auth_user_created
   AFTER INSERT ON auth.users
   FOR EACH ROW EXECUTE FUNCTION public.handle_new_user();
 
--- 10. 查看所有用户数据的视图（管理员用）
+-- 10. 所有用户详情的视图（管理员用）
 -- ============================================================
 CREATE OR REPLACE VIEW admin_user_overview AS
 SELECT 
@@ -151,11 +165,27 @@ SELECT
   p.last_login_at,
   p.created_at,
   COUNT(DISTINCT ud.data_key) AS data_keys_count,
+  COALESCE(SUM(ud.data_size_bytes), 0) AS total_storage_bytes,
   COUNT(DISTINCT ul.id) AS total_actions
 FROM profiles p
 LEFT JOIN user_data ud ON p.id = ud.user_id
 LEFT JOIN usage_logs ul ON p.id = ul.user_id
 GROUP BY p.id, p.name, p.email, p.role, p.account_status, p.last_login_at, p.created_at;
+
+-- 11. 用户云端存储用量详情视图
+-- ============================================================
+CREATE OR REPLACE VIEW user_storage_detail AS
+SELECT
+  p.id AS user_id,
+  p.name,
+  p.email,
+  ud.data_key,
+  ud.data_size_bytes,
+  ud.updated_at,
+  ROUND(ud.data_size_bytes::numeric / 1048576, 3) AS size_mb
+FROM profiles p
+JOIN user_data ud ON p.id = ud.user_id
+ORDER BY p.id, ud.data_size_bytes DESC;
 
 -- ============================================================
 -- 11. 账户管理说明
@@ -185,7 +215,7 @@ UPDATE profiles SET role = 'admin' WHERE email = 'admin@trial.automarket.cn';
 */
 
 -- ============================================================
--- 12. 禁用邮件确认（可选，适合内测试用场景）
+-- 13. 禁用邮件确认（可选，适合内测试用场景）
 -- ============================================================
 -- 如果不想让用户收确认邮件，在 Authentication → Settings 中：
 --   关闭 "Confirm email" 开关
