@@ -174,6 +174,8 @@ let storageDirHandle = null;       // FileSystemDirectoryHandle（用户选择�
 
 // ===== AI 实时分析状态 =====
 let aiEnabled = false;                // AI 分析总开关
+let currentSpeaker = '用户';           // 当前说话人角色：'用户' | '主持人'
+let autoDetectSpeaker = false;         // LLM 自动识别说话人（需要 API Key）
 let aiConfig = {                      // LLM API 配置
   provider: 'openai',
   apiKey: '',
@@ -312,7 +314,9 @@ const els = {
   emotionNeu: document.getElementById("emotionNeu"),
   emotionNeg: document.getElementById("emotionNeg"),
   expressionTag: document.getElementById("expressionTag"),
-  expressionDetail: document.getElementById("expressionDetail")
+  expressionDetail: document.getElementById("expressionDetail"),
+  speakerUserBtn: document.getElementById("speakerUserBtn"),
+  speakerHostBtn: document.getElementById("speakerHostBtn")
 };
 
 function renderOutline(items = outlineDefaults) {
@@ -1947,6 +1951,7 @@ function syncAIConfigUI() {
     els.aiToggleBtn.classList.remove('on');
     els.aiAnalysisPanel.classList.remove('active');
   }
+  updateAutoDetectState();
 }
 
 function getDefaultModel(provider) {
@@ -2095,25 +2100,71 @@ function stopSpeechRecognition() {
   els.aiStatusDot.className = 'ai-status-dot';
 }
 
+// 是否启用 LLM 自动说话人识别（需要 API Key）
+let autoDetectSpeaker = false;
+// 上下文窗口（用于 LLM 判断说话人）
+let speakerContextWindow = [];
+
 function onSpeechRecognized(text) {
   if (!text || !text.trim()) return;
   var cleanText = text.trim();
-  // 加入待分析缓冲区
-  pendingAnalysisTexts.push(cleanText);
-  // 限制缓冲区大小
+
+  // 如果开启了 LLM 自动识别，用大模型判断说话人
+  if (autoDetectSpeaker && aiConfig.apiKey) {
+    autoIdentifySpeaker(cleanText);
+    // 结果异步返回，暂时先用当前说话人标注
+  }
+
+  // 带角色标注的文本（存缓冲区时附角色）
+  var labeledText = '[' + currentSpeaker + '] ' + cleanText;
+  pendingAnalysisTexts.push(labeledText);
   if (pendingAnalysisTexts.length > 30) pendingAnalysisTexts.shift();
 
-  // 作为用户发言追加到转写面板
+  // 追加到转写面板
   var node = document.createElement('div');
   node.className = 'line';
-  node.innerHTML = '<strong>用户（语音识别）</strong><p>' + escapeHtml(cleanText) + '</p><span class="tag">实时语音</span>';
+  var roleColor = currentSpeaker === '主持人' ? '#60a5fa' : '#34d399';
+  node.innerHTML = '<strong style="color:' + roleColor + '">' + escapeHtml(currentSpeaker) + '</strong><p>' + escapeHtml(cleanText) + '</p><span class="tag">实时语音</span>';
   els.transcriptFeed.appendChild(node);
   els.transcriptFeed.scrollTop = els.transcriptFeed.scrollHeight;
 
-  // 追加到完整文本
+  // 追加到完整文本（带角色）
   var lineNumber = String(fullTranscriptLines.length + 1).padStart(2, '0');
-  fullTranscriptLines.push(lineNumber + '. 用户：' + cleanText);
+  fullTranscriptLines.push(lineNumber + '. ' + currentSpeaker + '：' + cleanText);
   syncFullTranscript();
+
+  // 维护上下文窗口
+  speakerContextWindow.push({ role: currentSpeaker, text: cleanText });
+  if (speakerContextWindow.length > 20) speakerContextWindow.shift();
+}
+
+// LLM 自动判断说话人
+async function autoIdentifySpeaker(text) {
+  try {
+    // 构建上下文
+    var ctxText = speakerContextWindow.slice(-6).map(function (item) {
+      return item.role + '：' + item.text;
+    }).join('\n');
+
+    var promptText = '你是一个访谈场景的说话人识别助手。请根据对话上下文，判断下面这句新说的话是谁说的。\n'
+      + '只有两个角色：主持人（研究人员，负责提问和追问）和用户（受访者，提供个人看法和体验）。\n\n'
+      + '最近对话：\n' + (ctxText || '（无）') + '\n\n'
+      + '新的语句：' + text + '\n\n'
+      + '只返回一个词："主持人"或"用户"，不要解释。';
+
+    var result = await callLLM([
+      { role: 'user', content: promptText }
+    ], { temperature: 0, maxTokens: 10 });
+
+    var predicted = result.trim().replace(/["\s]/g, '');
+    if (predicted === '用户' || predicted === '主持人') {
+      if (predicted !== currentSpeaker) {
+        switchSpeaker(predicted);
+      }
+    }
+  } catch (e) {
+    // 静默失败，保持当前说话人
+  }
 }
 
 // ---- LLM API 调用 ----
@@ -2361,6 +2412,7 @@ function toggleAI() {
     stopEmotionFacePipeline();
     showToast('AI 情绪/表情分析已关闭（语音识别仍运行中）', 'info');
   }
+  updateAutoDetectState();
   saveAIConfig();
 }
 
@@ -2368,6 +2420,7 @@ function toggleAI() {
 function handleAISettingsSave() {
   saveAIConfig();
   els.aiSettingsBody.style.display = 'none';
+  updateAutoDetectState();
   showToast('AI 配置已保存', 'success');
 
   // 如果当前开启了 AI 且有视频源，重启 LLM 分析管线
@@ -2508,6 +2561,21 @@ els.startCameraBtn.addEventListener("click", startCamera);
 els.stopCameraBtn.addEventListener("click", stopCamera);
 els.cameraSelect.addEventListener("change", switchCamera);
 
+// ---- 说话人切换 ----
+function switchSpeaker(role) {
+  if (currentSpeaker === role) return;
+  currentSpeaker = role;
+  if (role === '用户') {
+    els.speakerUserBtn.classList.add('active');
+    els.speakerHostBtn.classList.remove('active');
+  } else {
+    els.speakerHostBtn.classList.add('active');
+    els.speakerUserBtn.classList.remove('active');
+  }
+  // 更新语音识别卡片提示
+  els.asrText.textContent = '当前识别为「' + role + '」的发言...';
+}
+
 // ---- AI 分析事件绑定 ----
 els.aiToggleBtn.addEventListener("click", toggleAI);
 els.aiSettingsBtn.addEventListener("click", function () {
@@ -2521,6 +2589,34 @@ els.aiProvider.addEventListener("change", function () {
 });
 els.aiSaveSettingsBtn.addEventListener("click", handleAISettingsSave);
 els.aiTestConnBtn.addEventListener("click", handleAITestConnection);
+
+// 说话人切换按钮
+els.speakerUserBtn.addEventListener("click", function () { switchSpeaker('用户'); });
+els.speakerHostBtn.addEventListener("click", function () { switchSpeaker('主持人'); });
+
+// AI 自动识别说话人复选框
+var speakerAutoCheck = document.getElementById('speakerAutoCheck');
+var speakerAutoLabel = document.getElementById('speakerAutoLabel');
+speakerAutoCheck.addEventListener('change', function () {
+  autoDetectSpeaker = this.checked;
+  if (autoDetectSpeaker && !aiConfig.apiKey) {
+    showToast('请先配置 LLM API Key 才能使用 AI 自动识别', 'error');
+    this.checked = false;
+    autoDetectSpeaker = false;
+    return;
+  }
+  showToast(autoDetectSpeaker ? 'AI 自动识别说话人已启用' : '已切换到手动模式', 'info');
+});
+// 更新复选框状态
+function updateAutoDetectState() {
+  var hasKey = !!aiConfig.apiKey;
+  speakerAutoCheck.disabled = !aiEnabled || !hasKey;
+  speakerAutoLabel.className = 'speaker-auto-label' + (aiEnabled && hasKey ? ' enabled' : '');
+  if (!aiEnabled || !hasKey) {
+    speakerAutoCheck.checked = false;
+    autoDetectSpeaker = false;
+  }
+}
 
 renderSessionFilters();
 renderSessions();

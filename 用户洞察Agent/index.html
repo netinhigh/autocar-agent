@@ -386,6 +386,23 @@
                       </div>
                     </div>
 
+                    <!-- 说话人角色切换器 -->
+                    <div class="speaker-switch-bar" id="speakerSwitchBar">
+                      <span class="speaker-label">当前说话人</span>
+                      <div class="speaker-toggle-group">
+                        <button class="speaker-btn active" id="speakerUserBtn" data-role="用户">
+                          <span class="speaker-dot user-dot"></span>受访用户
+                        </button>
+                        <button class="speaker-btn" id="speakerHostBtn" data-role="主持人">
+                          <span class="speaker-dot host-dot"></span>主持人
+                        </button>
+                      </div>
+                      <label class="speaker-auto-label" id="speakerAutoLabel" title="需要已配置 API Key 才能生效">
+                        <input type="checkbox" id="speakerAutoCheck" disabled />
+                        <span>AI 自动</span>
+                      </label>
+                    </div>
+
                     <!-- API 设置区（默认折叠） -->
                     <div class="ai-settings-body" id="aiSettingsBody" style="display:none;">
                       <div class="ai-settings-grid">
