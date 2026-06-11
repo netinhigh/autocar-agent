@@ -381,7 +381,13 @@ function setView(view) {
     button.classList.toggle("active", button.dataset.view === view);
   });
   document.querySelectorAll(".view").forEach((panel) => panel.classList.remove("active"));
-  document.getElementById(view).classList.add("active");
+  var target = document.getElementById(view);
+  if (target) {
+    target.classList.add("active");
+    console.log('[setView] ✓ 切换到: #' + view);
+  } else {
+    console.error('[setView] ✗ 目标面板不存在: #' + view);
+  }
   updateContextVisibility();
 }
 
@@ -2518,11 +2524,27 @@ function showToast(msg, type) {
   }, 2500);
 }
 
+// ===== 调研阶段切换（使用 querySelectorAll，不会因为单个元素缺失而抛错） =====
 document.querySelectorAll(".segment").forEach((button) => {
   button.addEventListener("click", () => setStage(button.dataset.stage));
 });
 
-els.closeSessionBtn.addEventListener("click", closeSessionDetail);
+// ★ 防御性绑定：使用 safeBind 避免某个 el 缺失导致后续代码全部失效
+function safeBind(el, event, handler, label) {
+  if (!el) {
+    console.warn('[事件绑定] 跳过：' + (label || 'unknown') + ' — 元素不存在');
+    return false;
+  }
+  try {
+    el.addEventListener(event, handler);
+    return true;
+  } catch(e) {
+    console.error('[事件绑定] 失败：' + (label || 'unknown'), e);
+    return false;
+  }
+}
+
+safeBind(els.closeSessionBtn, "click", closeSessionDetail, "closeSessionBtn");
 
 document.getElementById("briefForm").addEventListener("submit", generateOutline);
 document.getElementById("recordBtn").addEventListener("click", startRecording);
@@ -2530,121 +2552,43 @@ document.getElementById("nextLineBtn").addEventListener("click", addTranscriptLi
 document.getElementById("videoUpload").addEventListener("change", handleVideoUpload);
 document.getElementById("copyTranscriptBtn").addEventListener("click", copyTranscript);
 document.getElementById("clearTranscriptBtn").addEventListener("click", clearTranscript);
-els.selectStorageDirBtn.addEventListener("click", selectStorageDir);
-els.startSessionBtn.addEventListener("click", startPendingSession);
+safeBind(els.selectStorageDirBtn, "click", selectStorageDir, "selectStorageDirBtn");
+safeBind(els.startSessionBtn, "click", startPendingSession, "startSessionBtn");
 
 // 准备锁定/解锁事件
-els.lockBtn.addEventListener("click", function() {
+safeBind(els.lockBtn, "click", function() {
   if (preparationLocked) {
     showUnlockModal();
   } else {
     lockPreparation();
   }
-});
-els.closeUnlockModalBtn.addEventListener("click", hideUnlockModal);
-els.cancelUnlockBtn.addEventListener("click", hideUnlockModal);
-els.confirmUnlockBtn.addEventListener("click", verifyAndUnlock);
-els.unlockPasswordInput.addEventListener("keydown", function(e) {
+}, "lockBtn");
+safeBind(els.closeUnlockModalBtn, "click", hideUnlockModal, "closeUnlockModalBtn");
+safeBind(els.cancelUnlockBtn, "click", hideUnlockModal, "cancelUnlockBtn");
+safeBind(els.confirmUnlockBtn, "click", verifyAndUnlock, "confirmUnlockBtn");
+safeBind(els.unlockPasswordInput, "keydown", function(e) {
   if (e.key === 'Enter') verifyAndUnlock();
-});
+}, "unlockPasswordInput");
 // 点击弹窗遮罩关闭
-els.unlockModal.addEventListener("click", function(e) {
+safeBind(els.unlockModal, "click", function(e) {
   if (e.target === els.unlockModal) hideUnlockModal();
-});
+}, "unlockModal");
 
-document.getElementById("generateReportBtn").addEventListener("click", renderReport);
-document.getElementById("resetBtn").addEventListener("click", resetDemo);
-document.getElementById("manualSyncBtn")?.addEventListener("click", function() {
+safeBind(document.getElementById("generateReportBtn"), "click", renderReport, "generateReportBtn");
+safeBind(document.getElementById("resetBtn"), "click", resetDemo, "resetBtn");
+var _msb = document.getElementById("manualSyncBtn");
+if (_msb) _msb.addEventListener("click", function() {
   autoSyncUserSamplesToBridge();
   var completedCount = getCompletedUserSamples().length;
   alert('已同步 ' + completedCount + ' 个已完成调研的用户样本到共享数据桥！\n虚拟消费者平台将自动检测并生成对应数字分身。');
 });
-document.getElementById("editOutlineBtn").addEventListener("click", () => {
+safeBind(document.getElementById("editOutlineBtn"), "click", function() {
   els.outlineList.querySelector("li")?.focus();
-});
-document.getElementById("knowledgeSearch").addEventListener("input", (event) => {
-  renderKnowledge(event.target.value);
-});
-els.productFilter.addEventListener("change", renderSessions);
-els.typeFilter.addEventListener("change", renderSessions);
-els.sessionFilter.addEventListener("change", renderSessions);
-document.getElementById("clearFiltersBtn").addEventListener("click", () => {
-  els.productFilter.value = "";
-  els.typeFilter.value = "";
-  els.sessionFilter.value = "";
-  renderSessions();
-});
+}, "editOutlineBtn");
 
-// 新建调研弹窗事件
-els.newSessionBtn.addEventListener("click", showNewSessionModal);
-els.closeModalBtn.addEventListener("click", hideNewSessionModal);
-els.cancelNewSessionBtn.addEventListener("click", hideNewSessionModal);
-els.newSessionModal.addEventListener("click", function(e) {
-  if (e.target === els.newSessionModal) hideNewSessionModal();
-});
-els.newSessionForm.addEventListener("submit", handleNewSessionSubmit);
-
-// 摄像头事件
-els.startCameraBtn.addEventListener("click", startCamera);
-els.stopCameraBtn.addEventListener("click", stopCamera);
-els.cameraSelect.addEventListener("change", switchCamera);
-
-// ---- 说话人切换 ----
-function switchSpeaker(role) {
-  if (currentSpeaker === role) return;
-  currentSpeaker = role;
-  if (role === '用户') {
-    els.speakerUserBtn.classList.add('active');
-    els.speakerHostBtn.classList.remove('active');
-  } else {
-    els.speakerHostBtn.classList.add('active');
-    els.speakerUserBtn.classList.remove('active');
-  }
-  // 更新语音识别卡片提示
-  els.asrText.textContent = '当前识别为「' + role + '」的发言...';
-}
-
-// ---- AI 分析事件绑定 ----
-els.aiToggleBtn.addEventListener("click", toggleAI);
-els.aiSettingsBtn.addEventListener("click", function () {
-  var body = els.aiSettingsBody;
-  body.style.display = body.style.display === 'none' ? 'block' : 'none';
-});
-els.aiProvider.addEventListener("change", function () {
-  aiConfig.provider = els.aiProvider.value;
-  els.aiCustomUrlLabel.style.display = aiConfig.provider === 'custom' ? '' : 'none';
-  els.aiModelName.value = getDefaultModel(aiConfig.provider);
-});
-els.aiSaveSettingsBtn.addEventListener("click", handleAISettingsSave);
-els.aiTestConnBtn.addEventListener("click", handleAITestConnection);
-
-// 说话人切换按钮
-els.speakerUserBtn.addEventListener("click", function () { switchSpeaker('用户'); });
-els.speakerHostBtn.addEventListener("click", function () { switchSpeaker('主持人'); });
-
-// AI 自动识别说话人复选框
-var speakerAutoCheck = document.getElementById('speakerAutoCheck');
-var speakerAutoLabel = document.getElementById('speakerAutoLabel');
-speakerAutoCheck.addEventListener('change', function () {
-  autoDetectSpeaker = this.checked;
-  if (autoDetectSpeaker && !aiConfig.apiKey) {
-    showToast('请先配置 LLM API Key 才能使用 AI 自动识别', 'error');
-    this.checked = false;
-    autoDetectSpeaker = false;
-    return;
-  }
-  showToast(autoDetectSpeaker ? 'AI 自动识别说话人已启用' : '已切换到手动模式', 'info');
-});
-// 更新复选框状态
-function updateAutoDetectState() {
-  var hasKey = !!aiConfig.apiKey;
-  speakerAutoCheck.disabled = !aiEnabled || !hasKey;
-  speakerAutoLabel.className = 'speaker-auto-label' + (aiEnabled && hasKey ? ' enabled' : '');
-  if (!aiEnabled || !hasKey) {
-    speakerAutoCheck.checked = false;
-    autoDetectSpeaker = false;
-  }
-}
+// ★★★ 所有初始化渲染移到事件绑定之前 ★★★
+//     确保页面至少能渲染出来，不被事件绑定错误阻断
+console.log('[初始化] 开始渲染页面...');
 
 renderSessionFilters();
 renderSessions();
@@ -2662,6 +2606,93 @@ updateCaptureStatus(false, false);
 setView("overview");
 setStage("prepare");
 updateContextVisibility();
+
+console.log('[初始化] 渲染完成 — 活跃视图数=' + document.querySelectorAll('.view.active').length);
+
+// ===== 事件绑定（续） =====
+
+safeBind(els.productFilter, "change", renderSessions, "productFilter");
+safeBind(els.typeFilter, "change", renderSessions, "typeFilter");
+safeBind(els.sessionFilter, "change", renderSessions, "sessionFilter");
+document.getElementById("clearFiltersBtn").addEventListener("click", () => {
+  els.productFilter.value = "";
+  els.typeFilter.value = "";
+  els.sessionFilter.value = "";
+  renderSessions();
+});
+
+// 新建调研弹窗事件
+safeBind(els.newSessionBtn, "click", showNewSessionModal, "newSessionBtn");
+safeBind(els.closeModalBtn, "click", hideNewSessionModal, "closeModalBtn");
+safeBind(els.cancelNewSessionBtn, "click", hideNewSessionModal, "cancelNewSessionBtn");
+safeBind(els.newSessionModal, "click", function(e) {
+  if (e.target === els.newSessionModal) hideNewSessionModal();
+}, "newSessionModal");
+safeBind(els.newSessionForm, "submit", handleNewSessionSubmit, "newSessionForm");
+
+// 摄像头事件
+safeBind(els.startCameraBtn, "click", startCamera, "startCameraBtn");
+safeBind(els.stopCameraBtn, "click", stopCamera, "stopCameraBtn");
+safeBind(els.cameraSelect, "change", switchCamera, "cameraSelect");
+
+// ---- 说话人切换 ----
+function switchSpeaker(role) {
+  if (currentSpeaker === role) return;
+  currentSpeaker = role;
+  if (role === '用户') {
+    els.speakerUserBtn.classList.add('active');
+    els.speakerHostBtn.classList.remove('active');
+  } else {
+    els.speakerHostBtn.classList.add('active');
+    els.speakerUserBtn.classList.remove('active');
+  }
+  // 更新语音识别卡片提示
+  els.asrText.textContent = '当前识别为「' + role + '」的发言...';
+}
+
+// ---- AI 分析事件绑定 ----
+safeBind(els.aiToggleBtn, "click", toggleAI, "aiToggleBtn");
+safeBind(els.aiSettingsBtn, "click", function () {
+  var body = els.aiSettingsBody;
+  body.style.display = body.style.display === 'none' ? 'block' : 'none';
+}, "aiSettingsBtn");
+safeBind(els.aiProvider, "change", function () {
+  aiConfig.provider = els.aiProvider.value;
+  els.aiCustomUrlLabel.style.display = aiConfig.provider === 'custom' ? '' : 'none';
+  els.aiModelName.value = getDefaultModel(aiConfig.provider);
+}, "aiProvider");
+safeBind(els.aiSaveSettingsBtn, "click", handleAISettingsSave, "aiSaveSettingsBtn");
+safeBind(els.aiTestConnBtn, "click", handleAITestConnection, "aiTestConnBtn");
+
+// 说话人切换按钮
+safeBind(els.speakerUserBtn, "click", function () { switchSpeaker('用户'); }, "speakerUserBtn");
+safeBind(els.speakerHostBtn, "click", function () { switchSpeaker('主持人'); }, "speakerHostBtn");
+
+// AI 自动识别说话人复选框
+var speakerAutoCheck = document.getElementById('speakerAutoCheck');
+var speakerAutoLabel = document.getElementById('speakerAutoLabel');
+if (speakerAutoCheck) {
+  speakerAutoCheck.addEventListener('change', function () {
+    autoDetectSpeaker = this.checked;
+    if (autoDetectSpeaker && !aiConfig.apiKey) {
+      showToast('请先配置 LLM API Key 才能使用 AI 自动识别', 'error');
+      this.checked = false;
+      autoDetectSpeaker = false;
+      return;
+    }
+    showToast(autoDetectSpeaker ? 'AI 自动识别说话人已启用' : '已切换到手动模式', 'info');
+  });
+}
+// 更新复选框状态
+function updateAutoDetectState() {
+  var hasKey = !!aiConfig.apiKey;
+  if (speakerAutoCheck) speakerAutoCheck.disabled = !aiEnabled || !hasKey;
+  if (speakerAutoLabel) speakerAutoLabel.className = 'speaker-auto-label' + (aiEnabled && hasKey ? ' enabled' : '');
+  if (!aiEnabled || !hasKey) {
+    if (speakerAutoCheck) speakerAutoCheck.checked = false;
+    autoDetectSpeaker = false;
+  }
+}
 
 // 加载 AI 分析配置
 loadAIConfig();
