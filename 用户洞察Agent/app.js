@@ -250,7 +250,13 @@ const els = {
   confirmUnlockBtn: document.getElementById("confirmUnlockBtn"),
   briefForm: document.getElementById("briefForm"),
   outlineCard: document.querySelector(".outline-card"),
-  audienceSection: document.querySelector(".audience-section")
+  audienceSection: document.querySelector(".audience-section"),
+  // 表单输入元素
+  goalInput: document.getElementById("goalInput"),
+  productInput: document.getElementById("productInput"),
+  durationInput: document.getElementById("durationInput"),
+  editOutlineBtn: document.getElementById("editOutlineBtn"),
+  manageAudienceBtn: document.getElementById("manageAudienceBtn")
 };
 
 function renderOutline(items = outlineDefaults) {
@@ -275,6 +281,11 @@ function setStage(stage) {
   });
   document.querySelectorAll(".stage").forEach((panel) => panel.classList.remove("active"));
   document.getElementById(`${stage}Stage`).classList.add("active");
+
+  // ★ 切换到准备阶段且调研进行中：刷新锁定 UI
+  if (stage === "prepare" && preparationLocked && currentSession && currentSession.status === "进行中") {
+    applyPreparationLockedUI();
+  }
 }
 
 function setView(view) {
@@ -481,8 +492,13 @@ function setAvailableStages(stages, activeStage) {
 function configureSessionStages(session) {
   const status = session?.status || "待开始";
   pendingSessionStarted = false;
-  resetPreparationLock();
   els.startSessionBanner.classList.add("hidden");
+
+  // ★ 只在切换到"待开始"或"已完成"会话时重置锁定
+  //    "进行中"的会话应保持锁定，防止准备信息被私自修改
+  if (status !== "进行中") {
+    resetPreparationLock();
+  }
 
   if (status === "已完成") {
     setAvailableStages(["report"], "report");
@@ -498,7 +514,11 @@ function configureSessionStages(session) {
     return;
   }
 
+  // 进行中：三阶段均可查看，准备页保持锁定状态
   setAvailableStages(["prepare", "live", "report"], "live");
+  if (preparationLocked) {
+    applyPreparationLockedUI();
+  }
   updateContextVisibility();
 }
 
@@ -517,13 +537,20 @@ function generateLockPassword() {
 function lockPreparation() {
   if (preparationLocked) return;
 
-  lockPassword = generateLockPassword();
+  // 已有密码则复用（解锁后重新锁定场景），否则生成新密码
+  if (!lockPassword) {
+    lockPassword = generateLockPassword();
+  }
   preparationLocked = true;
+
+  var isInProgress = currentSession && currentSession.status === "进行中";
 
   // 更新横幅
   els.bannerEyebrow.textContent = 'Ready to launch';
-  els.bannerTitle.textContent = '调研准备已完成';
-  els.bannerDesc.textContent = '点击开始后，系统将开启音视频采集、实时转写、AI主持提醒和报告生成流程。';
+  els.bannerTitle.textContent = isInProgress ? '调研准备已锁定' : '调研准备已完成';
+  els.bannerDesc.textContent = isInProgress
+    ? '调研访谈进行中。如需修改准备信息，请点击解锁并输入授权密码。'
+    : '点击开始后，系统将开启音视频采集、实时转写、AI主持提醒和报告生成流程。';
 
   // 显示密码
   els.lockPasswordCode.textContent = lockPassword;
@@ -534,8 +561,14 @@ function lockPreparation() {
   els.lockBtnText.textContent = '解锁';
   els.lockBtn.querySelector('svg').innerHTML = '<rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/><line x1="12" y1="14" x2="12" y2="17" style="stroke:#34d399;stroke-width:2"/>';
 
-  // 启用开始调研按钮
-  els.startSessionBtn.disabled = false;
+  // 开始调研按钮：进行中时隐藏，否则启用
+  if (isInProgress) {
+    els.startSessionBtn.disabled = true;
+    els.startSessionBtn.style.display = 'none';
+  } else {
+    els.startSessionBtn.disabled = false;
+    els.startSessionBtn.style.display = '';
+  }
 
   // 锁定表单：所有输入框不可编辑
   els.briefForm.classList.add('locked');
@@ -551,7 +584,11 @@ function lockPreparation() {
   // 锁定用户管理区域
   if (els.audienceSection) els.audienceSection.classList.add('locked');
 
-  showToast('调研已锁定，密码：' + lockPassword + '（请妥善保存）', 'success');
+  if (!isInProgress) {
+    showToast('调研已锁定，密码：' + lockPassword + '（请妥善保存）', 'success');
+  } else {
+    showToast('准备已重新锁定', 'success');
+  }
 }
 
 // 显示解锁弹窗
@@ -587,12 +624,16 @@ function verifyAndUnlock() {
 function doUnlock() {
   preparationLocked = false;
 
+  var isInProgress = currentSession && currentSession.status === "进行中";
+
   // 更新横幅
   els.bannerEyebrow.textContent = 'Preparation';
-  els.bannerTitle.textContent = '调研准备中';
-  els.bannerDesc.textContent = '确认调研信息无误后，请点击锁定按钮完成准备。锁定后信息不可修改，生成数字密码供授权人员查看。';
+  els.bannerTitle.textContent = isInProgress ? '调研进行中 - 准备可编辑' : '调研准备中';
+  els.bannerDesc.textContent = isInProgress
+    ? '编辑完成后请重新锁定。'
+    : '确认调研信息无误后，请点击锁定按钮完成准备。锁定后信息不可修改，生成数字密码供授权人员查看。';
 
-  // 隐藏密码
+  // 密码保持不变（下次锁定时复用）
   els.lockPasswordDisplay.classList.add('hidden');
 
   // 解锁按钮恢复锁定状态
@@ -600,8 +641,13 @@ function doUnlock() {
   els.lockBtnText.textContent = '锁定准备';
   els.lockBtn.querySelector('svg').innerHTML = '<rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/>';
 
-  // 禁用开始调研按钮
+  // 开始调研按钮：进行中时隐藏，否则禁用但不隐藏
   els.startSessionBtn.disabled = true;
+  if (isInProgress) {
+    els.startSessionBtn.style.display = 'none';
+  } else {
+    els.startSessionBtn.style.display = '';
+  }
 
   // 解锁表单
   els.briefForm.classList.remove('locked');
@@ -634,6 +680,38 @@ function resetPreparationLock() {
   if (els.outlineCard) els.outlineCard.classList.remove('locked');
   if (els.editOutlineBtn) els.editOutlineBtn.style.display = '';
   if (els.audienceSection) els.audienceSection.classList.remove('locked');
+}
+
+// ★ 刷新准备页锁定 UI（切换回准备阶段时调用，不改变密码）
+function applyPreparationLockedUI() {
+  if (!preparationLocked) return;
+
+  // 横幅状态
+  els.startSessionBanner.classList.remove('hidden');
+  els.bannerEyebrow.textContent = 'Ready to launch';
+  els.bannerTitle.textContent = '调研准备已完成';
+  els.bannerDesc.textContent = '调研已进入访谈阶段。如需修改准备信息，请点击解锁并输入授权密码。';
+  els.lockPasswordCode.textContent = lockPassword;
+  els.lockPasswordDisplay.classList.remove('hidden');
+
+  // 锁定按钮 → 解锁按钮
+  els.lockBtn.classList.add('locked');
+  els.lockBtnText.textContent = '解锁';
+  els.lockBtn.querySelector('svg').innerHTML = '<rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/><line x1="12" y1="14" x2="12" y2="17" style="stroke:#34d399;stroke-width:2"/>';
+
+  // 开始调研按钮隐藏（已在进行中）
+  els.startSessionBtn.disabled = true;
+  els.startSessionBtn.style.display = 'none';
+
+  // 表单全部锁定
+  els.briefForm.classList.add('locked');
+  els.goalInput.readOnly = true;
+  els.productInput.readOnly = true;
+  els.durationInput.readOnly = true;
+  els.manageAudienceBtn.style.display = 'none';
+  if (els.outlineCard) els.outlineCard.classList.add('locked');
+  if (els.editOutlineBtn) els.editOutlineBtn.style.display = 'none';
+  if (els.audienceSection) els.audienceSection.classList.add('locked');
 }
 
 function fillSelect(select, values, defaultLabel) {
@@ -871,10 +949,22 @@ function openSessionDetail(sessionId) {
 
 function startPendingSession() {
   if (!currentSession) return;
+
+  // ★ 自动锁定：如尚未锁定，自动生成密码并锁定准备页
   if (!preparationLocked) {
-    showToast('请先锁定调研准备后再开始调研', 'warning');
-    return;
+    lockPassword = generateLockPassword();
+    preparationLocked = true;
+    // 锁定表单 DOM（不显示 banner，由 applyPreparationLockedUI 统一处理）
+    els.briefForm.classList.add('locked');
+    els.goalInput.readOnly = true;
+    els.productInput.readOnly = true;
+    els.durationInput.readOnly = true;
+    els.manageAudienceBtn.style.display = 'none';
+    if (els.outlineCard) els.outlineCard.classList.add('locked');
+    if (els.editOutlineBtn) els.editOutlineBtn.style.display = 'none';
+    if (els.audienceSection) els.audienceSection.classList.add('locked');
   }
+
   pendingSessionStarted = true;
   currentSession.status = "进行中";
   // 保存用户列表到会话
@@ -884,6 +974,8 @@ function startPendingSession() {
   triggerInsightSave();
   els.startSessionBanner.classList.add("hidden");
   setAvailableStages(["prepare", "live", "report"], "live");
+  // ★ 刷新准备页锁定 UI（密码已显示在横幅，入口按钮变成解锁）
+  applyPreparationLockedUI();
   updateContextVisibility();
   updateCaptureStatus(true, document.querySelector(".video-feed").classList.contains("has-upload"));
   els.liveState.textContent = "记录中";
