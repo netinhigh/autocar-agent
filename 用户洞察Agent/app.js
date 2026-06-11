@@ -377,18 +377,45 @@ function setStage(stage) {
 }
 
 function setView(view) {
+  console.log('[setView] → ' + view + ' (调用者: ' + (new Error().stack || '').split('\\n')[2]?.trim()?.replace(/^at /, '') + ')');
+  
   document.querySelectorAll(".nav-item").forEach((button) => {
     button.classList.toggle("active", button.dataset.view === view);
   });
-  document.querySelectorAll(".view").forEach((panel) => panel.classList.remove("active"));
+  
+  // ★★★ 双保险：class + inline style，彻底杜绝多个面板同时显示 ★★★
+  document.querySelectorAll(".work-panel").forEach((panel) => {
+    panel.classList.remove("active");
+    panel.style.display = "none";   // 强制隐藏所有面板
+  });
+  
   var target = document.getElementById(view);
   if (target) {
     target.classList.add("active");
-    console.log('[setView] ✓ 切换到: #' + view);
+    target.style.display = "";      // 清除 inline style，让 CSS .work-panel.active { display: block } 生效
+    console.log('[setView] ✓ 已激活 #' + view + ' | 活跃面板数=' + document.querySelectorAll('.work-panel.active').length);
   } else {
-    console.error('[setView] ✗ 目标面板不存在: #' + view);
+    console.error('[setView] ✗ 目标面板 #' + view + ' 不存在！');
   }
+  
   updateContextVisibility();
+  
+  // 异步验证：100ms 后确认没有多个面板同时 active
+  setTimeout(function() {
+    var activePanels = document.querySelectorAll('.work-panel.active');
+    if (activePanels.length > 1) {
+      console.error('[setView] ⚠️ 异常！检测到 ' + activePanels.length + ' 个面板同时活跃:', 
+        Array.from(activePanels).map(function(p) { return '#' + p.id; }).join(', '));
+      // 紧急修复：只保留目标视图
+      activePanels.forEach(function(p) {
+        if (p.id !== view) {
+          p.classList.remove('active');
+          p.style.display = 'none';
+          console.warn('[setView] 紧急修复：强制隐藏 #' + p.id);
+        }
+      });
+    }
+  }, 100);
 }
 
 function showSubNav(sessionId, sessionName, type = 'qual') {
@@ -2586,28 +2613,112 @@ safeBind(document.getElementById("editOutlineBtn"), "click", function() {
   els.outlineList.querySelector("li")?.focus();
 }, "editOutlineBtn");
 
-// ★★★ 所有初始化渲染移到事件绑定之前 ★★★
-//     确保页面至少能渲染出来，不被事件绑定错误阻断
+// ★★★ 所有初始化渲染，每个函数独立 try-catch 保护 ★★★
 console.log('[初始化] 开始渲染页面...');
 
-renderSessionFilters();
-renderSessions();
-renderOutline();
-renderQuestions();
-renderPersona();
-renderCompetitors();
-renderStrategies();
-renderKnowledge();
-updateProgress(progress);
-updateTimer();
-updateCaptureStatus(false, false);
+function safeRender(name, fn) {
+  try {
+    console.log('[初始化] 渲染 ' + name + '...');
+    fn();
+  } catch(e) {
+    console.error('[初始化] ✗ ' + name + ' 渲染失败:', e.message, e.stack);
+  }
+}
 
-// ★ 初始化视图：确保只显示 overview 面板
+safeRender('sessionFilters',   function() { renderSessionFilters(); });
+safeRender('sessions',         function() { renderSessions(); });
+safeRender('outline',          function() { renderOutline(); });
+safeRender('questions',        function() { renderQuestions(); });
+safeRender('persona',          function() { renderPersona(); });
+safeRender('competitors',      function() { renderCompetitors(); });
+safeRender('strategies',       function() { renderStrategies(); });
+safeRender('knowledge',        function() { renderKnowledge(); });
+
+try { updateProgress(progress); } catch(e) { console.error('[初始化] updateProgress 失败:', e.message); }
+try { updateTimer(); } catch(e) { console.error('[初始化] updateTimer 失败:', e.message); }
+try { updateCaptureStatus(false, false); } catch(e) { console.error('[初始化] updateCaptureStatus 失败:', e.message); }
+
+// ★ 初始化视图：强制只显示 overview 面板
+console.log('[初始化] 设置视图为 overview...');
 setView("overview");
-setStage("prepare");
-updateContextVisibility();
+try { setStage("prepare"); } catch(e) { console.error('[初始化] setStage 失败:', e.message); }
+try { updateContextVisibility(); } catch(e) { console.error('[初始化] updateContextVisibility 失败:', e.message); }
 
-console.log('[初始化] 渲染完成 — 活跃视图数=' + document.querySelectorAll('.view.active').length);
+// ★★★ 最终强制检查：确保不要有两个面板同时活跃 ★★★
+(function enforceSingleView() {
+  var allPanels = document.querySelectorAll('.work-panel');
+  var activeCount = 0;
+  allPanels.forEach(function(p) {
+    if (p.classList.contains('active')) {
+      activeCount++;
+      if (activeCount > 1 || p.id !== 'overview') {
+        console.warn('[初始化] 修复异常活跃面板: #' + p.id);
+        p.classList.remove('active');
+        p.style.display = 'none';
+      }
+    }
+  });
+  // 确保 overview 是活跃的
+  var overviewPanel = document.getElementById('overview');
+  if (overviewPanel && !overviewPanel.classList.contains('active')) {
+    overviewPanel.classList.add('active');
+    overviewPanel.style.display = '';
+  }
+  console.log('[初始化] 渲染完成 — 活跃工作面板数=' + document.querySelectorAll('.work-panel.active').length);
+})();
+
+// ★★★ MutationObserver：持续监控整个 body 中 work-panel 的 class 变化 ★★★
+(function setupPanelMonitor() {
+  var observer = new MutationObserver(function(mutations) {
+    mutations.forEach(function(mutation) {
+      if (mutation.type === 'attributes' && mutation.attributeName === 'class') {
+        if (mutation.target.classList.contains('work-panel') && mutation.target.classList.contains('active')) {
+          // 检查是否已有其他活跃面板
+          var otherActive = document.querySelector('.work-panel.active:not(#' + mutation.target.id + ')');
+          if (otherActive) {
+            console.error('[PanelsGuard] ⚠️ 检测到面板重叠！当前激活面板:', 
+              '#' + mutation.target.id, '和 #' + otherActive.id);
+            // 隐藏非预期的活跃面板
+            if (otherActive.id !== mutation.target.id) {
+              otherActive.classList.remove('active');
+              otherActive.style.display = 'none';
+              console.warn('[PanelsGuard] 已自动修复：隐藏 #' + otherActive.id);
+            }
+          }
+        }
+      }
+    });
+  });
+  
+  observer.observe(document.body, { 
+    attributes: true, 
+    attributeFilter: ['class'], 
+    subtree: true 
+  });
+  console.log('[PanelsGuard] 面板监控已启动');
+})();
+
+// 延迟二次检查（500ms 和 1500ms 后），捕获任何异步触发的视图切换
+[500, 1500].forEach(function(delay) {
+  setTimeout(function() {
+    var activePanels = document.querySelectorAll('.work-panel.active');
+    if (activePanels.length > 1) {
+      console.error('[PanelsGuard] ' + delay + 'ms 检查：发现 ' + activePanels.length + ' 个面板重叠！',
+        Array.from(activePanels).map(function(p) { return '#' + p.id; }).join(', '));
+      // 只保留第一个（通常是 overview）
+      activePanels.forEach(function(p, i) {
+        if (i > 0) {
+          p.classList.remove('active');
+          p.style.display = 'none';
+        }
+      });
+      console.warn('[PanelsGuard] 已修复：仅保留 #' + activePanels[0].id);
+    } else {
+      console.log('[PanelsGuard] ' + delay + 'ms 检查：正常 (1个活跃面板: #' + 
+        (activePanels[0] ? activePanels[0].id : 'none') + ')');
+    }
+  }, delay);
+});
 
 // ===== 事件绑定（续） =====
 

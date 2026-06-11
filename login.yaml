@@ -1,0 +1,24 @@
+- generic [ref=e5]:
+  - generic [ref=e7]:
+    - heading "汽车产品营销 Agent" [level=1] [ref=e8]
+    - paragraph [ref=e9]:
+      - text: AI 驱动
+      - text: 用户洞察
+      - text: 虚拟仿真
+  - generic [ref=e12]:
+    - generic [ref=e13]:
+      - generic [ref=e14]: 账号
+      - generic [ref=e15]:
+        - generic: ◆
+        - textbox "输入试用账号" [ref=e16]
+    - generic [ref=e17]:
+      - generic [ref=e18]: 密码
+      - generic [ref=e19]:
+        - generic: ◇
+        - textbox "输入密码" [ref=e20]
+    - button "登 录" [ref=e21] [cursor=pointer]
+  - generic [ref=e22]:
+    - text: 如需试用账号，请联系管理员开通
+    - text: 后台管理
+    - link "Admin Panel" [ref=e24] [cursor=pointer]:
+      - /url: admin.html

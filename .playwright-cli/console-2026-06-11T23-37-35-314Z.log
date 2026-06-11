@@ -1,0 +1,3 @@
+[    1864ms] [LOG] [Auth] Supabase 客户端已初始化 @ https://www.aceai.icu/auth.js:20
+[    1982ms] [ERROR] Failed to load resource: the server responded with a status of 404 () @ https://www.aceai.icu/%E7%94%A8%E6%88%B7%E6%B4%9E%E5%AF%9FAgent/login.html:0
+[    2150ms] [ERROR] Failed to load resource: the server responded with a status of 404 () @ https://www.aceai.icu/favicon.ico:0
