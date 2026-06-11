@@ -66,62 +66,62 @@ ALTER TABLE profiles ENABLE ROW LEVEL SECURITY;
 ALTER TABLE user_data ENABLE ROW LEVEL SECURITY;
 ALTER TABLE usage_logs ENABLE ROW LEVEL SECURITY;
 
--- 6. RLS 策略 - profiles
+-- 6. RLS 策略 - profiles（先删后建，确保可重复运行）
 -- ============================================================
--- 所有人可以查看自己的 profile
+DROP POLICY IF EXISTS "Users can view own profile" ON profiles;
 CREATE POLICY "Users can view own profile"
   ON profiles FOR SELECT
   USING (auth.uid() = id);
 
--- 管理员可以查看所有 profile
+DROP POLICY IF EXISTS "Admins can view all profiles" ON profiles;
 CREATE POLICY "Admins can view all profiles"
   ON profiles FOR SELECT
   USING (EXISTS (
     SELECT 1 FROM profiles WHERE id = auth.uid() AND role = 'admin'
   ));
 
--- 管理员可以更新 profile
+DROP POLICY IF EXISTS "Admins can update profiles" ON profiles;
 CREATE POLICY "Admins can update profiles"
   ON profiles FOR UPDATE
   USING (EXISTS (
     SELECT 1 FROM profiles WHERE id = auth.uid() AND role = 'admin'
   ));
 
--- 管理员可以插入 profile
+DROP POLICY IF EXISTS "Admins can insert profiles" ON profiles;
 CREATE POLICY "Admins can insert profiles"
   ON profiles FOR INSERT
   WITH CHECK (EXISTS (
     SELECT 1 FROM profiles WHERE id = auth.uid() AND role = 'admin'
   ));
 
--- 7. RLS 策略 - user_data
+-- 7. RLS 策略 - user_data（先删后建，确保可重复运行）
 -- ============================================================
--- 用户只能读写自己的数据
+DROP POLICY IF EXISTS "Users can manage own data" ON user_data;
 CREATE POLICY "Users can manage own data"
   ON user_data FOR ALL
   USING (auth.uid() = user_id)
   WITH CHECK (auth.uid() = user_id);
 
--- 管理员可以查看所有用户数据
+DROP POLICY IF EXISTS "Admins can view all user data" ON user_data;
 CREATE POLICY "Admins can view all user data"
   ON user_data FOR SELECT
   USING (EXISTS (
     SELECT 1 FROM profiles WHERE id = auth.uid() AND role = 'admin'
   ));
 
--- 8. RLS 策略 - usage_logs
+-- 8. RLS 策略 - usage_logs（先删后建，确保可重复运行）
 -- ============================================================
--- 用户只能查看自己的日志
+DROP POLICY IF EXISTS "Users can view own logs" ON usage_logs;
 CREATE POLICY "Users can view own logs"
   ON usage_logs FOR SELECT
   USING (auth.uid() = user_id);
 
--- 用户可以插入自己的日志
+DROP POLICY IF EXISTS "Users can insert own logs" ON usage_logs;
 CREATE POLICY "Users can insert own logs"
   ON usage_logs FOR INSERT
   WITH CHECK (auth.uid() = user_id);
 
--- 管理员可以查看所有日志
+DROP POLICY IF EXISTS "Admins can view all logs" ON usage_logs;
 CREATE POLICY "Admins can view all logs"
   ON usage_logs FOR SELECT
   USING (EXISTS (
@@ -188,7 +188,7 @@ JOIN user_data ud ON p.id = ud.user_id
 ORDER BY p.id, ud.data_size_bytes DESC;
 
 -- ============================================================
--- 11. 账户管理说明
+-- 12. 账户管理说明
 -- ============================================================
 -- 以下是几种创建用户账号的方法：
 
