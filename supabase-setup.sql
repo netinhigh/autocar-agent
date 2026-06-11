@@ -153,9 +153,10 @@ CREATE TRIGGER on_auth_user_created
   AFTER INSERT ON auth.users
   FOR EACH ROW EXECUTE FUNCTION public.handle_new_user();
 
--- 10. 所有用户详情的视图（管理员用）
+-- 10. 所有用户详情的视图（管理员用，先删后建确保列结构可变更）
 -- ============================================================
-CREATE OR REPLACE VIEW admin_user_overview AS
+DROP VIEW IF EXISTS admin_user_overview;
+CREATE VIEW admin_user_overview AS
 SELECT 
   p.id,
   p.name,
@@ -172,9 +173,10 @@ LEFT JOIN user_data ud ON p.id = ud.user_id
 LEFT JOIN usage_logs ul ON p.id = ul.user_id
 GROUP BY p.id, p.name, p.email, p.role, p.account_status, p.last_login_at, p.created_at;
 
--- 11. 用户云端存储用量详情视图
+-- 11. 用户云端存储用量详情视图（先删后建确保可重复运行）
 -- ============================================================
-CREATE OR REPLACE VIEW user_storage_detail AS
+DROP VIEW IF EXISTS user_storage_detail;
+CREATE VIEW user_storage_detail AS
 SELECT
   p.id AS user_id,
   p.name,
