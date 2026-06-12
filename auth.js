@@ -84,29 +84,31 @@ window.Auth = {
       if (window.SharedDataStore && typeof window.SharedDataStore.flushToCloud === 'function') {
         await window.SharedDataStore.flushToCloud();
       }
-      // 3) 等待充足时间确保云端写入完成（网络慢时 500ms 不够）
-      await new Promise(function(r) { setTimeout(r, 2000); });
+      // 3) 等待一小段时间确保云端写入完成
+      await new Promise(function(r) { setTimeout(r, 500); });
       console.log('[Auth] 数据已强制保存到云端');
     } catch(e) {
       console.warn('[Auth] 强制保存失败，继续登出:', e.message);
     }
     
-    // ★ 清除本地 IndexedDB（仅当前用户）
-    //    注意：保留 localStorage 紧急备份作为安全网（vc_insight_backup 等）
-    //    如果云端保存失败，下次登录时可从 localStorage 恢复
+    // ★ 清除本地 IndexedDB（仅当前用户）+ localStorage 缓存，云端数据已完整保留
     if (window.StorageEngine) {
+      // 优先只清除当前用户数据，保留其他用户在本机的数据
       if (typeof StorageEngine.clearLocalForCurrentUser === 'function') {
         StorageEngine.clearLocalForCurrentUser();
       } else {
         StorageEngine.clearLocal();
       }
     }
-    // 仅清除当前用户 ID 标记（不清除数据备份，保留作为安全网）
     try {
-      localStorage.removeItem('_curr_uid');
+      localStorage.removeItem('vc_ui_shared_data');
+      localStorage.removeItem('vc_ui_data_version');
+      localStorage.removeItem('vc_insight_backup');
     } catch(e) {}
+    // 清除当前用户 ID 标记
     window._currentUserId = null;
-    console.log('[Auth] 本地缓存已清除（保留紧急备份），云端数据保留');
+    try { localStorage.removeItem('_curr_uid'); } catch(e) {}
+    console.log('[Auth] 本地缓存已清除，云端数据保留');
     
     await client.auth.signOut();
     window.location.href = 'login.html';

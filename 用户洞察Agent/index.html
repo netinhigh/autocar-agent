@@ -38,7 +38,7 @@
     <!-- 登录守卫 -->
     <script>
       (async function guard() {
-        if (!window.SUPABASE_READY) { console.log('[守卫] 开发模式，跳过验证'); window._dataRestored = true; return; }
+        if (!window.SUPABASE_READY) { console.log('[守卫] 开发模式，跳过验证'); return; }
         initSupabase();
         var result = await AuthGuard.protect(false);
         if (!result.authenticated && !result.devMode) return;
@@ -51,62 +51,43 @@
             localStorage.setItem('_curr_uid', currentUser.id);
           }
         } catch(e) {}
-
+        
+        // 从云端同步用户数据
+        if (window.SharedDataStore) {
+          await SharedDataStore.loadFromCloud();
+        }
         // ★ 从云端恢复用户洞察数据（调研场次 + 用户样本）
         //    必须在 app.js 加载前执行，否则 app.js 会用空数组覆盖
-        //    多级兜底：云端 → localStorage → 空数据
-        var restored = false;
         if (window.SUPABASE_READY && window.Auth) {
           try {
             var insightData = await window.Auth.loadUserData('insight_data');
             if (insightData) {
               window._restoredInsightData = insightData;
-              restored = true;
-              console.log('[守卫] ☁ 已加载云端洞察数据：' + 
+              console.log('[守卫] 已加载云端洞察数据：' + 
                 (insightData.researchSessions ? insightData.researchSessions.length : 0) + ' 个调研场次，' + 
                 (insightData.userSamples ? insightData.userSamples.length : 0) + ' 个用户样本');
+            } else {
+              // 尝试从 localStorage 备份恢复
+              try {
+                var backup = localStorage.getItem('vc_insight_backup');
+                if (backup) {
+                  window._restoredInsightData = JSON.parse(backup);
+                  console.log('[守卫] 从本地备份恢复了洞察数据');
+                }
+              } catch(e2) {}
             }
           } catch(e) {
-            console.warn('[守卫] 云端加载失败:', e.message);
+            console.warn('[守卫] 加载云端洞察数据失败:', e.message);
           }
         }
 
-        // 云端无数据时，尝试 localStorage 兜底
-        if (!restored) {
-          try {
-            var backup = localStorage.getItem('vc_insight_backup');
-            if (backup) {
-              window._restoredInsightData = JSON.parse(backup);
-              restored = true;
-              var d = window._restoredInsightData;
-              console.log('[守卫] 💾 从本地备份恢复了洞察数据：' +
-                (d.researchSessions ? d.researchSessions.length : 0) + ' 场次，' +
-                (d.userSamples ? d.userSamples.length : 0) + ' 样本');
-            }
-          } catch(e2) {}
-        }
-
-        if (!restored) {
-          console.log('[守卫] 无历史数据（首次登录或数据已清空）');
-        }
-
-        // ★ 标记数据加载完成，app.js 可安全初始化
-        window._dataRestored = true;
-
-        // 如果云端有数据，也更新 localStorage 备份（同步最新状态）
-        if (window._restoredInsightData) {
-          try {
-            localStorage.setItem('vc_insight_backup', JSON.stringify(window._restoredInsightData));
-          } catch(e) {}
-        }
-
-        // ★ 页面关闭/刷新前紧急保存到 localStorage（同步操作，确保不丢数据）
+        // ★★★ 页面关闭/刷新前紧急保存到 localStorage（同步操作，不依赖网络）★★★
         window.addEventListener('beforeunload', function() {
           try {
+            // 尝试使用 sendBeacon 异步上传到 Supabase（不阻塞页面关闭）
             if (window._emergencyBackupData) {
-              // sendBeacon 无法携带 Supabase Auth header，改用 localStorage 保底
-              localStorage.setItem('vc_insight_backup', JSON.stringify(window._emergencyBackupData));
-              console.log('[守卫] 紧急备份已写入 localStorage');
+              var blob = new Blob([JSON.stringify(window._emergencyBackupData)], {type: 'application/json'});
+              navigator.sendBeacon(window.SUPABASE_CONFIG.url + '/rest/v1/user_data', blob);
             }
           } catch(e) {}
         });

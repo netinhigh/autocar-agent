@@ -60,22 +60,17 @@ const strategies = [];
 const knowledgeItems = [];
 
 
-// ★ 从云端/本地恢复数据（由 index.html 守卫在 app.js 加载前预加载）
+// ★ 从云端恢复数据（由 index.html 守卫在 app.js 加载前预加载）
 //    守卫在 <head> 中异步加载，到此处（<body> 底部）通常已完成
 //    如果尚未完成，app.js 启动后延迟加载
 var _restored = window._restoredInsightData;
 let userSamples = (_restored && _restored.userSamples) ? _restored.userSamples : [];
-let researchSessions = (_restored && _restored.researchSessions) ? _restored.researchSessions : [];
-if (_restored) console.log('[数据恢复] userSamples: ' + userSamples.length + ' 条, researchSessions: ' + researchSessions.length + ' 场');
+if (_restored) console.log('[数据恢复] userSamples: ' + userSamples.length + ' 条');
 
-// 如果守卫尚未完成数据加载，延迟重试（最多等待 5 秒）
+// 如果守卫尚未完成数据加载，延迟重试
 if (!_restored && window.SUPABASE_READY) {
-  var _retryCount = 0;
-  var _retryMax = 10;  // 10次 × 500ms = 5秒
-  var _retryInterval = setInterval(function() {
-    _retryCount++;
+  setTimeout(function() {
     if (window._restoredInsightData) {
-      clearInterval(_retryInterval);
       var d = window._restoredInsightData;
       userSamples = (d.userSamples) ? d.userSamples : [];
       researchSessions = (d.researchSessions) ? d.researchSessions : [];
@@ -84,27 +79,8 @@ if (!_restored && window.SUPABASE_READY) {
       if (typeof renderSessionFilters === 'function') renderSessionFilters();
       if (typeof renderSessions === 'function') renderSessions();
       if (typeof renderAudienceAvatars === 'function') renderAudienceAvatars();
-    } else if (window._dataRestored || _retryCount >= _retryMax) {
-      // 守卫已完成但无数据，或超时
-      clearInterval(_retryInterval);
-      if (!window._restoredInsightData) {
-        console.log('[数据恢复] 未找到历史数据，使用空数据启动');
-      }
     }
   }, 500);
-}
-
-// ★ 如果浏览器有 localStorage 备份但 _restored 为空（极端情况），主动从 localStorage 恢复
-if (!_restored && !window.SUPABASE_READY) {
-  try {
-    var _lsBackup = localStorage.getItem('vc_insight_backup');
-    if (_lsBackup) {
-      var _parsed = JSON.parse(_lsBackup);
-      userSamples = _parsed.userSamples || [];
-      researchSessions = _parsed.researchSessions || [];
-      console.log('[数据恢复] 从 localStorage 恢复 (离线模式): ' + researchSessions.length + ' 场次, ' + userSamples.length + ' 样本');
-    }
-  } catch(e) {}
 }
 
 // ★ 获取已完成调研的用户样本（只返回所属调研状态为"已完成"的用户）
@@ -160,6 +136,9 @@ window.triggerManualSync = function() {
   console.log('[手动同步] 完成。同步日志：', log);
   alert('已同步 ' + completedCount + ' 个已完成调研的用户样本到共享数据桥！\n虚拟消费者平台将自动检测并生成对应数字分身。');
 };
+
+let researchSessions = (_restored && _restored.researchSessions) ? _restored.researchSessions : [];
+if (_restored) console.log('[数据恢复] researchSessions: ' + researchSessions.length + ' 场');
 
 
 let transcriptIndex = 0;
@@ -374,8 +353,7 @@ function setView(view) {
     button.classList.toggle("active", button.dataset.view === view);
   });
   document.querySelectorAll(".view").forEach((panel) => panel.classList.remove("active"));
-  var target = document.getElementById(view);
-  if (target) target.classList.add("active");
+  document.getElementById(view).classList.add("active");
   updateContextVisibility();
 }
 
@@ -2492,7 +2470,25 @@ function escapeHtml(str) {
   return div.innerHTML;
 }
 
-
+function showToast(msg, type) {
+  // 简单 toast 实现（如果已有 toast 函数则使用已有的）
+  if (typeof window.showToast === 'function') {
+    window.showToast(msg, type);
+    return;
+  }
+  var toast = document.createElement('div');
+  toast.textContent = msg;
+  toast.style.cssText = 'position:fixed;bottom:80px;left:50%;transform:translateX(-50%);padding:10px 24px;border-radius:8px;font-size:13px;z-index:99999;pointer-events:none;animation:fadeIn 0.3s ease;'
+    + (type === 'success' ? 'background:rgba(16,185,129,0.9);color:#fff;' :
+       type === 'error' ? 'background:rgba(239,68,68,0.9);color:#fff;' :
+       'background:rgba(59,130,246,0.9);color:#fff;');
+  document.body.appendChild(toast);
+  setTimeout(function () {
+    toast.style.opacity = '0';
+    toast.style.transition = 'opacity 0.3s';
+    setTimeout(function () { toast.remove(); }, 300);
+  }, 2500);
+}
 
 document.querySelectorAll(".segment").forEach((button) => {
   button.addEventListener("click", () => setStage(button.dataset.stage));
@@ -2973,43 +2969,31 @@ function removeQuestion(idx) {
 
 // 保存到 IndexedDB 本地 + Supabase 云端（100MB 配额）
 function saveInsightDataToCloud() {
-  var dataToSave = {
-    researchSessions: researchSessions,
-    userSamples: userSamples
-  };
-
-  // 始终先写 localStorage 紧急备份（同步，瞬时完成）
-  try {
-    localStorage.setItem('vc_insight_backup', JSON.stringify({
-      researchSessions: researchSessions,
-      userSamples: userSamples,
-      timestamp: Date.now()
-    }));
-  } catch(e) {}
-
   if (!window.StorageEngine) {
     // 降级：直接写 Supabase
     if (window.SUPABASE_READY && window.Auth) {
-      window.Auth.saveUserData('insight_data', dataToSave)
-        .then(function() { console.log('[Insight] ☁ 云端保存成功'); })
-        .catch(function(e) { console.error('[Insight] ☁ 云端保存失败:', e.message); });
+      window.Auth.saveUserData('insight_data', {
+        researchSessions: researchSessions,
+        userSamples: userSamples
+      });
     }
     return;
   }
-  StorageEngine.save('insight_data', dataToSave).then(function(r) {
-    if (r.cloud && r.cloud.ok) {
-      console.log('[Insight] ☁ 云端保存成功 (' + r.cloud.size + 'B)');
-    } else if (r.cloud) {
-      console.warn('[Insight] ☁ 云端保存跳过:', r.cloudSkipped || r.cloud.reason, '| 数据已存本地 + localStorage');
+  StorageEngine.save('insight_data', {
+    researchSessions: researchSessions,
+    userSamples: userSamples
+  }).then(function(r) {
+    if (r.cloud && !r.cloud.ok) {
+      console.warn('[Insight] 云端跳过:', r.cloudSkipped, '| 数据已存本地');
     }
   });
 }
 
-// 防抖版保存（避免频繁请求，但缩短延迟防止数据丢失）
+// 防抖版保存（避免频繁请求）
 var _insightSaveTimer = null;
 function saveInsightDataDebounced() {
   if (_insightSaveTimer) clearTimeout(_insightSaveTimer);
-  _insightSaveTimer = setTimeout(saveInsightDataToCloud, 500);
+  _insightSaveTimer = setTimeout(saveInsightDataToCloud, 2000);
 }
 
 // ★★★ 强制立即保存（登出前调用，取消防抖并同步写入）★★★
@@ -4113,6 +4097,144 @@ document.getElementById("surveyTypeFilter")?.addEventListener("change", renderSu
 
 // 将函数暴露到全局以便onclick调用
 window.removeQuestion = removeQuestion;
+
+// ===== 自动化测试代码 =====
+window.runMultiTabTests = async function() {
+  const results = [];
+  const sleep = ms => new Promise(r => setTimeout(r, ms));
+  
+  function addResult(name, passed, msg) {
+    results.push({ name, passed, msg });
+    console.log(`${passed ? '✓' : '✗'} ${name}: ${msg}`);
+  }
+  
+  // 重置
+  document.getElementById('resetBtn').click();
+  await sleep(100);
+  
+  try {
+    // 测试1：初始状态
+    const subNav = document.getElementById('subNavContainer');
+    addResult('测试1: 初始隐藏二级标签', subNav.style.display === 'none', 
+      `display=${subNav.style.display}`);
+    
+    // 测试2：打开第一场
+    document.querySelector('[data-session-id="S-001"]')?.click();
+    await sleep(150);
+    let tabs = document.querySelectorAll('.sub-nav-item');
+    addResult('测试2: 打开S-001显示1个标签', tabs.length === 1 && subNav.style.display !== 'none',
+      `标签数=${tabs.length}, 可见=${subNav.style.display !== 'none'}`);
+    
+    // 测试3：打开第二场
+    document.querySelector('[data-session-id="S-002"]')?.click();
+    await sleep(150);
+    tabs = document.querySelectorAll('.sub-nav-item');
+    addResult('测试3: 打开S-002显示2个标签', tabs.length === 2,
+      `标签数=${tabs.length}`);
+    
+    // 测试4：打开第三场
+    document.querySelector('[data-session-id="S-003"]')?.click();
+    await sleep(150);
+    tabs = document.querySelectorAll('.sub-nav-item');
+    addResult('测试4: 打开S-003显示3个标签', tabs.length === 3,
+      `标签数=${tabs.length}`);
+    
+    // 测试5：切换导航项后标签保持
+    document.querySelector('[data-view="persona"]')?.click();
+    await sleep(150);
+    const stillVisible = subNav.style.display !== 'none';
+    tabs = document.querySelectorAll('.sub-nav-item');
+    addResult('测试5: 切换导航项标签保持', stillVisible && tabs.length === 3,
+      `可见=${stillVisible}, 标签数=${tabs.length}`);
+    
+    // 回到用户调研
+    document.querySelector('[data-view="overview"]')?.click();
+    await sleep(150);
+    
+    // 测试6：关闭中间标签
+    let closeBtns = document.querySelectorAll('.sub-nav-close');
+    if (closeBtns.length >= 2) {
+      closeBtns[1].click(); // 关闭S-002
+      await sleep(150);
+      tabs = document.querySelectorAll('.sub-nav-item');
+      const remainingIds = Array.from(tabs).map(t => t.dataset.session);
+      addResult('测试6: 关闭S-002后剩2个标签', tabs.length === 2 && !remainingIds.includes('S-002'),
+        `标签数=${tabs.length}, 剩余=${remainingIds.join(',')}`);
+    } else {
+      addResult('测试6: 关闭中间标签', false, `关闭按钮数=${closeBtns.length}`);
+    }
+    
+    // 测试7：右上角关闭按钮
+    const closeBtn = document.getElementById('closeSessionBtn');
+    if (closeBtn && !closeBtn.classList.contains('hidden')) {
+      closeBtn.click();
+      await sleep(150);
+      tabs = document.querySelectorAll('.sub-nav-item');
+      addResult('测试7: 右上角关闭按钮', tabs.length === 1,
+        `关闭后标签数=${tabs.length}`);
+    } else {
+      addResult('测试7: 右上角关闭按钮', false, '按钮不存在或隐藏');
+    }
+    
+    // 测试8：关闭最后标签返回主页
+    const lastClose = document.querySelector('.sub-nav-close');
+    if (lastClose) {
+      lastClose.click();
+      await sleep(150);
+      const hidden = subNav.style.display === 'none';
+      const overviewActive = document.querySelector('[data-view="overview"]').classList.contains('active');
+      addResult('测试8: 关闭最后标签返回主页', hidden && overviewActive,
+        `隐藏=${hidden}, 概览激活=${overviewActive}`);
+    }
+    
+    // 测试9：重置清除所有
+    document.querySelector('[data-session-id="S-001"]')?.click();
+    await sleep(100);
+    document.querySelector('[data-session-id="S-002"]')?.click();
+    await sleep(100);
+    document.getElementById('resetBtn').click();
+    await sleep(150);
+    const afterReset = subNav.style.display === 'none';
+    tabs = document.querySelectorAll('.sub-nav-item');
+    addResult('测试9: 重置清除所有标签', afterReset && tabs.length === 0,
+      `隐藏=${afterReset}, 标签数=${tabs.length}`);
+    
+    // 测试10：标签切换
+    document.querySelector('[data-session-id="S-001"]')?.click();
+    await sleep(100);
+    document.querySelector('[data-session-id="S-002"]')?.click();
+    await sleep(100);
+    document.querySelector('[data-session-id="S-003"]')?.click();
+    await sleep(150);
+    tabs = document.querySelectorAll('.sub-nav-item');
+    if (tabs.length >= 3) {
+      tabs[0].click();
+      await sleep(150);
+      const firstActive = tabs[0].classList.contains('active');
+      const titleHasS001 = document.getElementById('researchTitle').textContent.includes('S-001');
+      addResult('测试10: 标签切换功能', firstActive && titleHasS001,
+        `第一个激活=${firstActive}, 标题含S-001=${titleHasS001}`);
+    }
+    
+  } catch (e) {
+    addResult('测试异常', false, e.message);
+  }
+  
+  // 输出总结
+  const pass = results.filter(r => r.passed).length;
+  const fail = results.filter(r => !r.passed).length;
+  console.log(`\n===== 测试总结 =====`);
+  console.log(`共 ${results.length} 项测试，${pass} 通过，${fail} 失败`);
+  console.log('===================\n');
+  
+  return { total: results.length, pass, fail, results };
+};
+
+// 页面加载1秒后自动运行测试
+setTimeout(() => {
+  console.log('开始多标签功能自动化测试...\n');
+  window.runMultiTabTests();
+}, 1000);
 
 // ===== 初始化定量调研模块 =====
 renderSurveys();
