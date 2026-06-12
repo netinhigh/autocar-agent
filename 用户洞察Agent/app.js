@@ -156,8 +156,8 @@ if (_restored) console.log('[数据恢复] researchSessions: ' + researchSession
 
 let transcriptIndex = 0;
 let isRecording = false;
-let progress = 42;
-let secondsLeft = 23 * 60 + 40;
+let progress = 0;
+let secondsLeft = 0;
 let timerId = null;
 let fullTranscriptLines = [];
 let currentSession = null;
@@ -340,6 +340,8 @@ function renderOutline(items = outlineDefaults) {
 }
 
 function renderQuestions() {
+  // questionState 为空时不覆盖 AI 助手面板的问题进度
+  if (!questionState.length) return;
   els.questionProgress.innerHTML = questionState
     .map((item) => {
       const cls = item.done ? "done" : "pending";
@@ -1120,6 +1122,8 @@ function appendFullTranscript(item) {
 }
 
 function addTranscriptLine() {
+  // transcriptLines 为空时不使用模拟数据，实时语音识别接管转写
+  if (!transcriptLines.length) return;
   const item = transcriptLines[transcriptIndex % transcriptLines.length];
   const node = document.createElement("div");
   node.className = "line";
@@ -1129,20 +1133,7 @@ function addTranscriptLine() {
   appendFullTranscript(item);
   transcriptIndex += 1;
 
-  if (transcriptIndex === 1) {
-    els.nextSuggestion.textContent = "追问冬季续航是否发生在返乡、高速或低温城市，区分真实经历和听说担忧。";
-    els.emotionNote.textContent = "用户谈到续航时停顿明显，担忧强度较高，建议让用户讲具体场景。";
-  } else if (transcriptIndex === 3) {
-    questionState[3].done = true;
-    els.nextSuggestion.textContent = "进入竞品B/C对比，确认品牌信任和座舱体验哪个更影响成交。";
-  } else if (transcriptIndex >= 5) {
-    questionState[4].done = true;
-    els.nextSuggestion.textContent = "收束到最终购买阻力：预算、家人意见、保值率和售后服务。";
-  }
-
-  renderQuestions();
-  updateProgress(progress + 9);
-  document.getElementById("signalMetric").textContent = String(8 + transcriptIndex);
+  // 注：访谈进度、信号、情绪等由 AI 综合分析管线实时驱动，不再使用硬编码模拟数据
 }
 
 // ★ 启动录制计时器（每秒更新 UI）
@@ -1751,18 +1742,8 @@ function generateOutline(event) {
 }
 
 function renderReportContent() {
-  document.getElementById("insightList").innerHTML = [
-    "目标用户并不排斥纯电SUV，核心顾虑集中在冬季续航可信度和长途补能规划。",
-    "智能座舱最能打动年轻家庭的不是技术参数，而是孩子安静、操作省心、家人愿意坐。",
-    "竞品B的品牌信任仍有优势，本品应通过试驾体验和真实车主案例降低不确定感。",
-    "营销表达应减少抽象技术词，转向真实家庭场景和可验证的使用证据。"
-  ].map((item) => `<li>${item}</li>`).join("");
-
-  document.getElementById("personaSummary").innerHTML = `
-    <p><strong>核心人群：</strong>25-35岁年轻家庭增换购用户。</p>
-    <p><strong>关键需求：</strong>可靠续航、亲子空间、易用智能座舱、清晰金融方案。</p>
-    <p><strong>成交触发：</strong>试驾中感知到座舱价值，并看到真实长途补能案例。</p>
-  `;
+  document.getElementById("insightList").innerHTML = "";
+  document.getElementById("personaSummary").innerHTML = "";
 
   els.playbackStatus.textContent = currentSession?.status === "已完成" ? "访谈资料已归档" : "可在调研结束后归档回放";
   if (els.uploadedVideo.src) {
@@ -1857,11 +1838,11 @@ function resetDemo() {
     stopCamera();
   }
   fullTranscriptLines = [];
-  secondsLeft = 23 * 60 + 40;
-  progress = 42;
+  secondsLeft = 0;
+  progress = 0;
   window.clearInterval(timerId);
-  questionState.forEach((item, index) => {
-    item.done = index < 3;
+  questionState.forEach(function(item) {
+    item.done = false;
   });
   els.transcriptFeed.innerHTML = "";
   els.fullTranscriptText.value = "";
@@ -1871,10 +1852,11 @@ function resetDemo() {
   els.uploadFileName.textContent = "支持访谈视频、试驾回访视频、焦点小组录像";
   els.liveState.textContent = "待开始";
   document.getElementById("recordBtn").textContent = "开始实时记录";
-  document.getElementById("signalMetric").textContent = "8";
-  els.nextSuggestion.textContent = "先确认用户家庭成员结构，再进入真实用车场景。";
-  els.emotionNote.textContent = "用户语速放慢，谈到冬季续航时出现停顿，建议追问真实经历。";
-  updateProgress(42);
+  document.getElementById("signalMetric").textContent = "--";
+  els.nextSuggestion.textContent = "";
+  els.emotionNote.textContent = "";
+  els.assistantStatus.textContent = "待启动";
+  updateProgress(0);
   updateTimer();
   updateCaptureStatus(false, false);
   renderQuestions();
