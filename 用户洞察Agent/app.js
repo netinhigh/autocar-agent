@@ -1,4 +1,4 @@
-﻿console.log('app.js 已加载 (v20260612-0950)');
+﻿console.log('app.js 已加载 (v20260612-1800)');
 
 // 全局错误捕获，用于定位问题
 window.addEventListener('error', function(e) {
@@ -329,7 +329,10 @@ const els = {
   expressionTag: document.getElementById("expressionTag"),
   expressionDetail: document.getElementById("expressionDetail"),
   speakerUserBtn: document.getElementById("speakerUserBtn"),
-  speakerHostBtn: document.getElementById("speakerHostBtn")
+  speakerHostBtn: document.getElementById("speakerHostBtn"),
+  followUpQuestions: document.getElementById("followUpQuestions"),
+  signalMetric: document.getElementById("signalMetric"),
+  emotionMetric: document.getElementById("emotionMetric")
 };
 
 function renderOutline(items = outlineDefaults) {
@@ -1977,6 +1980,7 @@ function getDefaultModel(provider) {
   var defaults = {
     openai: 'gpt-4o',
     deepseek: 'deepseek-chat',
+    doubao: 'doubao-pro-32k',
     qwen: 'qwen-plus',
     zhipu: 'glm-4-flash',
     custom: ''
@@ -1988,6 +1992,7 @@ function getAPIEndpoint() {
   var endpoints = {
     openai: 'https://api.openai.com/v1/chat/completions',
     deepseek: 'https://api.deepseek.com/v1/chat/completions',
+    doubao: 'https://ark.cn-beijing.volces.com/api/v3/chat/completions',
     qwen: 'https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions',
     zhipu: 'https://open.bigmodel.cn/api/paas/v4/chat/completions',
     custom: aiConfig.customUrl
@@ -1999,6 +2004,7 @@ function getVisionModel() {
   var models = {
     openai: 'gpt-4o',
     deepseek: null,       // DeepSeek 不支持视觉
+    doubao: 'doubao-vision-pro-32k',
     qwen: 'qwen-vl-plus',
     zhipu: 'glm-4v',
     custom: aiConfig.modelName
@@ -2017,7 +2023,8 @@ function initSpeechRecognition() {
 }
 
 function startSpeechRecognition() {
-  if (!aiEnabled || isSpeechListening) return;
+  // 语音识别独立于 AI 开关，始终随摄像头/视频启动
+  if (isSpeechListening) return;
   var SR = window.SpeechRecognition || window.webkitSpeechRecognition;
   if (!SR) {
     els.asrStatus.textContent = '不支持';
@@ -2081,11 +2088,11 @@ function startSpeechRecognition() {
 
     speechRecognition.onend = function () {
       isSpeechListening = false;
-      // 摄像头或视频仍在，自动重启
-      if (aiEnabled && (isCameraActive || document.querySelector('.video-feed.has-upload'))) {
+      // 摄像头或视频仍在，自动重启语音识别
+      if (isCameraActive || document.querySelector('.video-feed.has-upload')) {
         if (speechRestartTimer) clearTimeout(speechRestartTimer);
         speechRestartTimer = setTimeout(function () {
-          if (aiEnabled && !isSpeechListening) {
+          if (!isSpeechListening && (isCameraActive || document.querySelector('.video-feed.has-upload'))) {
             try { startSpeechRecognition(); } catch (e) { /* ignore */ }
           }
         }, 300);
@@ -2352,6 +2359,209 @@ async function analyzeFacialExpression(imageBase64) {
   }
 }
 
+// ---- 表情/情绪与语言一致性检测 ----
+let lastConsistencyResult = null;
+async function checkEmotionSpeechConsistency() {
+  if (!aiEnabled || !aiConfig.apiKey) return;
+  var allText = pendingAnalysisTexts.join('\n');
+  if (!allText || allText.length < 50) return;
+
+  try {
+    var latestEmotion = emotionHistory.length > 0 ? emotionHistory[emotionHistory.length - 1] : null;
+    var latestExpr = els.expressionTag.textContent.replace(/[😊😄😐😲😕😶😒😢😠😖🧐🤔]/g, '').trim();
+
+    var prompt = '你是访谈分析专家。请分析以下信息中说话人的语言表达与情绪/表情是否一致。\n\n'
+      + '最近对话文本:\n' + allText.substring(allText.length - 1000) + '\n\n'
+      + '检测到的情绪: ' + (latestEmotion ? latestEmotion.emotion + '(' + latestEmotion.primary + ')' : '未知') + '\n'
+      + '检测到的表情: ' + (latestExpr || '未知') + '\n\n'
+      + '返回JSON（只返回JSON）:\n{\n  "consistent": true/false,\n  "reason": "一句话说明一致或不一致的原因",\n  "flag": "一致/不一致-表情积极但语言消极/不一致-语言积极但表情消极/不一致-其他"\n}';
+
+    var result = await callLLM([
+      { role: 'system', content: '你是专业的访谈分析AI。请严格按JSON格式返回一致性判断。' },
+      { role: 'user', content: prompt }
+    ], { temperature: 0.1, maxTokens: 200 });
+
+    var jsonStr = result.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
+    var analysis = JSON.parse(jsonStr);
+    lastConsistencyResult = analysis;
+
+    // 不一致时在转写中标记
+    if (!analysis.consistent) {
+      var warnNode = document.createElement('div');
+      warnNode.className = 'line inconsistency-warn';
+      warnNode.innerHTML = '<strong style="color:#f59e0b">⚠ 一致性提醒</strong><p>' + escapeHtml(analysis.reason) + '</p><span class="tag tag-warn">言行不一</span>';
+      els.transcriptFeed.appendChild(warnNode);
+      els.transcriptFeed.scrollTop = els.transcriptFeed.scrollHeight;
+
+      // 更新情绪动作描述
+      if (els.emotionNote) {
+        els.emotionNote.textContent = '⚠ ' + analysis.reason;
+      }
+    }
+  } catch (e) {
+    console.error('[AI] 一致性检测失败:', e);
+  }
+}
+
+// ---- 访谈进度分析（对比提纲覆盖情况） ----
+function getCurrentOutlineItems() {
+  var items = [];
+  var lis = els.outlineList.querySelectorAll('li');
+  for (var i = 0; i < lis.length; i++) {
+    items.push(lis[i].textContent.trim());
+  }
+  return items.length > 0 ? items : outlineDefaults;
+}
+
+async function analyzeInterviewProgress() {
+  if (!aiEnabled || !aiConfig.apiKey) return;
+  var allText = pendingAnalysisTexts.join('\n');
+  if (!allText || allText.length < 80) return;
+
+  var outlineItems = getCurrentOutlineItems();
+  var outlineText = outlineItems.map(function(item, i) {
+    return (i + 1) + '. ' + item;
+  }).join('\n');
+
+  try {
+    var prompt = '你是访谈进度分析师。请根据对话内容判断以下访谈提纲的覆盖情况。\n\n'
+      + '【访谈提纲】\n' + outlineText + '\n\n'
+      + '【当前对话】\n' + allText.substring(allText.length - 3000) + '\n\n'
+      + '返回JSON（只返回JSON）:\n{\n'
+      + '  "progress_percent": 0-100的整数,\n'
+      + '  "covered_items": [已覆盖的提纲编号列表，如[1,2]],\n'
+      + '  "current_item": 当前正在讨论的提纲编号（1开始），若不确定则为最近被覆盖的,\n'
+      + '  "high_value_signals": [{"key": "话题关键词", "agreement": "高/中/低", "emotion": "积极/中性/负面", "detail": "一句话描述用户认可的观点"}],\n'
+      + '  "user_sentiment": {"overall": "积极/谨慎乐观/中性/担忧/负面", "interests": ["用户感兴趣的方面"], "concerns": ["用户担忧的方面"]},\n'
+      + '  "suggested_next": "一句话建议下一步要问什么",\n'
+      + '  "follow_up_questions": ["可深挖的问题1", "可深挖的问题2"],\n'
+      + '  "time_advice": "时间管理建议"\n'
+      + '}';
+
+    var result = await callLLM([
+      { role: 'system', content: '你是专业的访谈进度分析师。请严格按JSON格式返回。high_value_signals最多3条。' },
+      { role: 'user', content: prompt }
+    ], { temperature: 0.2, maxTokens: 800 });
+
+    var jsonStr = result.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
+    var analysis = JSON.parse(jsonStr);
+
+    // 更新四项指标
+    updateDashboardMetrics(analysis);
+
+    // 更新AI助手面板
+    updateAssistantPanel(analysis, outlineItems);
+
+    // 缓存分析结果
+    window._lastInterviewAnalysis = analysis;
+    console.log('[AI] 访谈进度分析完成: ' + analysis.progress_percent + '%');
+  } catch (e) {
+    console.error('[AI] 访谈进度分析失败:', e);
+  }
+}
+
+// ---- 更新顶部仪表盘指标 ----
+function updateDashboardMetrics(analysis) {
+  if (!analysis) return;
+
+  // 1. 访谈进度
+  var prog = analysis.progress_percent || 0;
+  progress = prog;
+  els.progressMetric.textContent = prog + '%';
+  els.progressBar.style.width = prog + '%';
+
+  // 2. 高价值信号
+  var signals = analysis.high_value_signals || [];
+  els.signalMetric.textContent = signals.length || '--';
+  var signalLabels = signals.map(function(s) { return s.key; }).join('、');
+  var signalSmallEl = els.signalMetric.parentElement.querySelector('small');
+  if (signalSmallEl) signalSmallEl.textContent = signalLabels || '等待更多数据...';
+
+  // 3. 用户情绪
+  var sentiment = analysis.user_sentiment || {};
+  els.emotionMetric.textContent = sentiment.overall || '--';
+  var emotionSmallEl = els.emotionMetric.parentElement.querySelector('small');
+  if (emotionSmallEl) {
+    var interests = (sentiment.interests || []).join('、');
+    var concerns = (sentiment.concerns || []).join('、');
+    emotionSmallEl.textContent = (interests ? '兴趣: ' + interests : '') + (concerns ? ' | 担忧: ' + concerns : '') || '等待数据...';
+  }
+
+  // 4. 时间建议
+  var timeSmallEl = els.timeMetric.parentElement.querySelector('small');
+  if (timeSmallEl) timeSmallEl.textContent = analysis.time_advice || '按当前节奏推进';
+}
+
+// ---- 更新右侧AI助手面板 ----
+function updateAssistantPanel(analysis, outlineItems) {
+  if (!analysis) return;
+
+  // 1. 问题进度列表 - 标记已覆盖和当前项
+  if (els.questionProgress) {
+    var html = '<div class="qp-title">提纲覆盖进度</div>';
+    for (var i = 0; i < outlineItems.length; i++) {
+      var num = i + 1;
+      var covered = (analysis.covered_items || []).indexOf(num) !== -1;
+      var isCurrent = analysis.current_item === num;
+      var cls = 'qp-item';
+      if (covered) cls += ' covered';
+      if (isCurrent) cls += ' current';
+      var icon = covered ? '✓' : (isCurrent ? '●' : '○');
+      html += '<div class="' + cls + '"><span class="qp-icon">' + icon + '</span><span class="qp-text">' + escapeHtml(outlineItems[i].substring(0, 40)) + (outlineItems[i].length > 40 ? '...' : '') + '</span></div>';
+    }
+    els.questionProgress.innerHTML = html;
+  }
+
+  // 2. 下一步建议
+  if (els.nextSuggestion) {
+    els.nextSuggestion.textContent = analysis.suggested_next || '根据提纲继续推进访谈...';
+  }
+
+  // 3. 深挖问题
+  if (els.followUpQuestions) {
+    var fuq = analysis.follow_up_questions || [];
+    if (fuq.length > 0) {
+      els.followUpQuestions.innerHTML = fuq.map(function(q) {
+        return '<li>' + escapeHtml(q) + '</li>';
+      }).join('');
+    } else {
+      els.followUpQuestions.innerHTML = '<li class="placeholder">等待更多对话数据...</li>';
+    }
+  }
+
+  // 4. 一致性与情绪
+  if (els.emotionNote && lastConsistencyResult && !lastConsistencyResult.consistent) {
+    // 保持一致性警告信息
+  }
+}
+
+// ---- 综合分析定时器 ----
+let interviewAnalysisIntervalId = null;
+
+function startInterviewAnalysisPipeline() {
+  if (interviewAnalysisIntervalId) clearInterval(interviewAnalysisIntervalId);
+  // 每15秒进行一次综合访谈分析（比情绪分析频率低，因为更重量级）
+  interviewAnalysisIntervalId = setInterval(function () {
+    if (aiEnabled && aiConfig.apiKey && pendingAnalysisTexts.length > 0) {
+      analyzeInterviewProgress();
+    }
+  }, 15000);
+
+  // 一致性检测每10秒一次
+  if (!window._consistencyIntervalId) {
+    window._consistencyIntervalId = setInterval(function () {
+      if (aiEnabled && aiConfig.apiKey && pendingAnalysisTexts.length > 0 && emotionHistory.length > 0) {
+        checkEmotionSpeechConsistency();
+      }
+    }, 10000);
+  }
+}
+
+function stopInterviewAnalysisPipeline() {
+  if (interviewAnalysisIntervalId) { clearInterval(interviewAnalysisIntervalId); interviewAnalysisIntervalId = null; }
+  if (window._consistencyIntervalId) { clearInterval(window._consistencyIntervalId); window._consistencyIntervalId = null; }
+}
+
 // ---- 分析管线 ----
 // 语音识别始终随摄像头启动（浏览器原生，无需 API Key）
 function startSpeechPipeline() {
@@ -2364,7 +2574,7 @@ function startSpeechPipeline() {
   }
 }
 
-// LLM 情绪 + 表情分析（需要 AI 开关 + API Key）
+// LLM 情绪 + 表情 + 综合访谈分析（需要 AI 开关 + API Key）
 function startEmotionFacePipeline() {
   if (!aiEnabled || !aiConfig.apiKey) return;
 
@@ -2388,12 +2598,16 @@ function startEmotionFacePipeline() {
     }
   }, 10000);
 
-  console.log('[AI] LLM 情绪/表情分析已启动');
+  // 启动综合访谈分析管线（进度/信号/一致性/助手建议）
+  startInterviewAnalysisPipeline();
+
+  console.log('[AI] LLM 情绪/表情/综合访谈分析已启动');
 }
 
 function stopEmotionFacePipeline() {
   if (analysisIntervalId) { clearInterval(analysisIntervalId); analysisIntervalId = null; }
   if (faceCaptureIntervalId) { clearInterval(faceCaptureIntervalId); faceCaptureIntervalId = null; }
+  stopInterviewAnalysisPipeline();
   els.emotionMain.textContent = '--';
   els.emotionPos.style.width = '0%';
   els.emotionNeu.style.width = '0%';
@@ -2418,16 +2632,20 @@ function toggleAI() {
   if (aiEnabled) {
     els.aiToggleBtn.classList.add('on');
     els.aiAnalysisPanel.classList.add('active');
-    // 如果已有视频源且 API 已配置，启动 LLM 情绪/表情分析
+    // 如果已有视频源且 API 已配置，启动 LLM 情绪/表情/综合访谈分析
     if (isCameraActive || document.querySelector('.video-feed.has-upload')) {
-      if (aiConfig.apiKey) startEmotionFacePipeline();
+      if (aiConfig.apiKey) {
+        startEmotionFacePipeline();
+        showToast('AI 分析已开启：情绪识别 + 表情分析 + 访谈进度 + 助手建议', 'success');
+        return;
+      }
     }
-    showToast('AI 情绪/表情分析已开启（语音识别始终自动运行）', 'success');
+    showToast('AI 分析已开启（语音识别始终自动运行）', 'success');
   } else {
     els.aiToggleBtn.classList.remove('on');
     els.aiAnalysisPanel.classList.remove('active');
     stopEmotionFacePipeline();
-    showToast('AI 情绪/表情分析已关闭（语音识别仍运行中）', 'info');
+    showToast('AI 分析已关闭（语音识别仍运行中）', 'info');
   }
   updateAutoDetectState();
   saveAIConfig();

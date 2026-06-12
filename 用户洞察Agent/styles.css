@@ -1585,6 +1585,113 @@ body.context-hidden .workspace {
   font-size: 12px;
 }
 
+/* 不一致警告样式 */
+.inconsistency-warn {
+  border-left-color: #f59e0b !important;
+  background: rgba(245, 158, 11, 0.12) !important;
+  animation: inconsistency-pulse 2s ease-in-out infinite;
+}
+
+@keyframes inconsistency-pulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(245, 158, 11, 0.3); }
+  50% { box-shadow: 0 0 12px 2px rgba(245, 158, 11, 0.3); }
+}
+
+.tag-warn {
+  color: #fef3c7 !important;
+  background: rgba(245, 158, 11, 0.35) !important;
+}
+
+/* 问题进度增强样式 */
+.qp-title {
+  font-size: 12px;
+  color: #67e8f9;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-bottom: 6px;
+  padding-bottom: 6px;
+  border-bottom: 1px solid rgba(126, 226, 255, 0.12);
+}
+
+.qp-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 4px;
+  border-radius: 4px;
+  font-size: 12px;
+  color: #94a3b8;
+  transition: all 0.3s;
+}
+
+.qp-item.covered {
+  color: #6ee7b7;
+}
+
+.qp-item.covered .qp-icon {
+  color: #6ee7b7;
+}
+
+.qp-item.current {
+  color: #67e8f9;
+  background: rgba(34, 211, 238, 0.1);
+  border-radius: 6px;
+}
+
+.qp-item.current .qp-icon {
+  color: #67e8f9;
+  animation: current-pulse 1.5s ease-in-out infinite;
+}
+
+@keyframes current-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.4; }
+}
+
+.qp-icon {
+  flex: 0 0 auto;
+  width: 14px;
+  font-size: 10px;
+  text-align: center;
+}
+
+.qp-text {
+  flex: 1;
+  min-width: 0;
+  line-height: 1.4;
+}
+
+/* 深挖问题列表 */
+.follow-up-list {
+  list-style: none;
+  padding: 0;
+  margin: 8px 0 0;
+  display: grid;
+  gap: 6px;
+}
+
+.follow-up-list li {
+  padding: 8px 10px;
+  border-radius: 6px;
+  background: rgba(34, 211, 238, 0.06);
+  border-left: 3px solid #67e8f9;
+  font-size: 12px;
+  color: #cbd5e1;
+  line-height: 1.45;
+  transition: all 0.3s;
+}
+
+.follow-up-list li:hover {
+  background: rgba(34, 211, 238, 0.12);
+  color: #ecf7ff;
+}
+
+.follow-up-list li.placeholder {
+  border-left-color: #334155;
+  color: #475569;
+  font-style: italic;
+}
+
 .report-grid,
 .persona-grid,
 .strategy-grid {
