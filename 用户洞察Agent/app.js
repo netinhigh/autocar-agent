@@ -1,9 +1,22 @@
-﻿console.log('app.js 已加载');
+﻿console.log('app.js 已加载 (v20260612-0950)');
 
 // 全局错误捕获，用于定位问题
 window.addEventListener('error', function(e) {
   console.error('全局错误:', e.message, '在', e.filename, '第', e.lineno, '行');
+  // 在页面上显示错误提示（便于非技术人员看到）
+  try {
+    var errEl = document.getElementById('jsInitError');
+    if (errEl) { errEl.style.display = 'block'; errEl.textContent = 'JS 错误: ' + e.message + ' (行' + e.lineno + ')'; }
+  } catch(_) {}
 });
+
+// ★ 安全事件绑定工具：防止 null 元素导致脚本崩溃
+function safeBind(idOrEl, event, handler) {
+  var el = typeof idOrEl === 'string' ? document.getElementById(idOrEl) : idOrEl;
+  if (el) { el.addEventListener(event, handler); return true; }
+  console.warn('[safeBind] 元素不存在，跳过绑定: ' + (typeof idOrEl === 'string' ? idOrEl : 'object'));
+  return false;
+}
 
 // 生成用户唯一识别码
 function generateUniqueCode() {
@@ -349,12 +362,16 @@ function setStage(stage) {
 }
 
 function setView(view) {
-  document.querySelectorAll(".nav-item").forEach((button) => {
-    button.classList.toggle("active", button.dataset.view === view);
-  });
-  document.querySelectorAll(".view").forEach((panel) => panel.classList.remove("active"));
-  document.getElementById(view).classList.add("active");
-  updateContextVisibility();
+  try {
+    document.querySelectorAll(".nav-item").forEach((button) => {
+      button.classList.toggle("active", button.dataset.view === view);
+    });
+    document.querySelectorAll(".view").forEach((panel) => panel.classList.remove("active"));
+    var target = document.getElementById(view);
+    if (target) { target.classList.add("active"); }
+    else { console.warn('[setView] 视图元素不存在: ' + view); }
+    updateContextVisibility();
+  } catch(e) { console.error('[setView] 异常:', e.message); }
 }
 
 function showSubNav(sessionId, sessionName, type = 'qual') {
@@ -531,7 +548,9 @@ function isLiveContextVisible() {
 }
 
 function updateContextVisibility() {
-  const researchActive = document.getElementById("research").classList.contains("active");
+  var researchEl = document.getElementById("research");
+  if (!researchEl) { console.warn('[updateContextVisibility] #research 不存在'); return; }
+  var researchActive = researchEl.classList.contains("active");
   document.body.classList.toggle("context-hidden", !researchActive || !isLiveContextVisible());
 }
 
@@ -2476,53 +2495,53 @@ document.querySelectorAll(".segment").forEach((button) => {
   button.addEventListener("click", () => setStage(button.dataset.stage));
 });
 
-els.closeSessionBtn.addEventListener("click", closeSessionDetail);
+safeBind(els.closeSessionBtn, "click", closeSessionDetail);
 
-document.getElementById("briefForm").addEventListener("submit", generateOutline);
-document.getElementById("recordBtn").addEventListener("click", startRecording);
-document.getElementById("nextLineBtn").addEventListener("click", addTranscriptLine);
-document.getElementById("videoUpload").addEventListener("change", handleVideoUpload);
-document.getElementById("copyTranscriptBtn").addEventListener("click", copyTranscript);
-document.getElementById("clearTranscriptBtn").addEventListener("click", clearTranscript);
-els.selectStorageDirBtn.addEventListener("click", selectStorageDir);
-els.startSessionBtn.addEventListener("click", startPendingSession);
+safeBind("briefForm", "submit", generateOutline);
+safeBind("recordBtn", "click", startRecording);
+safeBind("nextLineBtn", "click", addTranscriptLine);
+safeBind("videoUpload", "change", handleVideoUpload);
+safeBind("copyTranscriptBtn", "click", copyTranscript);
+safeBind("clearTranscriptBtn", "click", clearTranscript);
+safeBind(els.selectStorageDirBtn, "click", selectStorageDir);
+safeBind(els.startSessionBtn, "click", startPendingSession);
 
 // 准备锁定/解锁事件
-els.lockBtn.addEventListener("click", function() {
+safeBind(els.lockBtn, "click", function() {
   if (preparationLocked) {
     showUnlockModal();
   } else {
     lockPreparation();
   }
 });
-els.closeUnlockModalBtn.addEventListener("click", hideUnlockModal);
-els.cancelUnlockBtn.addEventListener("click", hideUnlockModal);
-els.confirmUnlockBtn.addEventListener("click", verifyAndUnlock);
-els.unlockPasswordInput.addEventListener("keydown", function(e) {
+safeBind(els.closeUnlockModalBtn, "click", hideUnlockModal);
+safeBind(els.cancelUnlockBtn, "click", hideUnlockModal);
+safeBind(els.confirmUnlockBtn, "click", verifyAndUnlock);
+safeBind(els.unlockPasswordInput, "keydown", function(e) {
   if (e.key === 'Enter') verifyAndUnlock();
 });
 // 点击弹窗遮罩关闭
-els.unlockModal.addEventListener("click", function(e) {
+safeBind(els.unlockModal, "click", function(e) {
   if (e.target === els.unlockModal) hideUnlockModal();
 });
 
-document.getElementById("generateReportBtn").addEventListener("click", renderReport);
-document.getElementById("resetBtn").addEventListener("click", resetDemo);
-document.getElementById("manualSyncBtn")?.addEventListener("click", function() {
+safeBind("generateReportBtn", "click", renderReport);
+safeBind("resetBtn", "click", resetDemo);
+safeBind("manualSyncBtn", "click", function() {
   autoSyncUserSamplesToBridge();
   var completedCount = getCompletedUserSamples().length;
   alert('已同步 ' + completedCount + ' 个已完成调研的用户样本到共享数据桥！\n虚拟消费者平台将自动检测并生成对应数字分身。');
 });
-document.getElementById("editOutlineBtn").addEventListener("click", () => {
+safeBind("editOutlineBtn", "click", () => {
   els.outlineList.querySelector("li")?.focus();
 });
-document.getElementById("knowledgeSearch").addEventListener("input", (event) => {
+safeBind("knowledgeSearch", "input", (event) => {
   renderKnowledge(event.target.value);
 });
-els.productFilter.addEventListener("change", renderSessions);
-els.typeFilter.addEventListener("change", renderSessions);
-els.sessionFilter.addEventListener("change", renderSessions);
-document.getElementById("clearFiltersBtn").addEventListener("click", () => {
+safeBind(els.productFilter, "change", renderSessions);
+safeBind(els.typeFilter, "change", renderSessions);
+safeBind(els.sessionFilter, "change", renderSessions);
+safeBind("clearFiltersBtn", "click", () => {
   els.productFilter.value = "";
   els.typeFilter.value = "";
   els.sessionFilter.value = "";
@@ -2530,18 +2549,18 @@ document.getElementById("clearFiltersBtn").addEventListener("click", () => {
 });
 
 // 新建调研弹窗事件
-els.newSessionBtn.addEventListener("click", showNewSessionModal);
-els.closeModalBtn.addEventListener("click", hideNewSessionModal);
-els.cancelNewSessionBtn.addEventListener("click", hideNewSessionModal);
-els.newSessionModal.addEventListener("click", function(e) {
+safeBind(els.newSessionBtn, "click", showNewSessionModal);
+safeBind(els.closeModalBtn, "click", hideNewSessionModal);
+safeBind(els.cancelNewSessionBtn, "click", hideNewSessionModal);
+safeBind(els.newSessionModal, "click", function(e) {
   if (e.target === els.newSessionModal) hideNewSessionModal();
 });
-els.newSessionForm.addEventListener("submit", handleNewSessionSubmit);
+safeBind(els.newSessionForm, "submit", handleNewSessionSubmit);
 
 // 摄像头事件
-els.startCameraBtn.addEventListener("click", startCamera);
-els.stopCameraBtn.addEventListener("click", stopCamera);
-els.cameraSelect.addEventListener("change", switchCamera);
+safeBind(els.startCameraBtn, "click", startCamera);
+safeBind(els.stopCameraBtn, "click", stopCamera);
+safeBind(els.cameraSelect, "change", switchCamera);
 
 // ---- 说话人切换 ----
 function switchSpeaker(role) {
@@ -2559,22 +2578,22 @@ function switchSpeaker(role) {
 }
 
 // ---- AI 分析事件绑定 ----
-els.aiToggleBtn.addEventListener("click", toggleAI);
-els.aiSettingsBtn.addEventListener("click", function () {
+safeBind(els.aiToggleBtn, "click", toggleAI);
+safeBind(els.aiSettingsBtn, "click", function () {
   var body = els.aiSettingsBody;
   body.style.display = body.style.display === 'none' ? 'block' : 'none';
 });
-els.aiProvider.addEventListener("change", function () {
+safeBind(els.aiProvider, "change", function () {
   aiConfig.provider = els.aiProvider.value;
   els.aiCustomUrlLabel.style.display = aiConfig.provider === 'custom' ? '' : 'none';
   els.aiModelName.value = getDefaultModel(aiConfig.provider);
 });
-els.aiSaveSettingsBtn.addEventListener("click", handleAISettingsSave);
-els.aiTestConnBtn.addEventListener("click", handleAITestConnection);
+safeBind(els.aiSaveSettingsBtn, "click", handleAISettingsSave);
+safeBind(els.aiTestConnBtn, "click", handleAITestConnection);
 
 // 说话人切换按钮
-els.speakerUserBtn.addEventListener("click", function () { switchSpeaker('用户'); });
-els.speakerHostBtn.addEventListener("click", function () { switchSpeaker('主持人'); });
+safeBind(els.speakerUserBtn, "click", function () { switchSpeaker('用户'); });
+safeBind(els.speakerHostBtn, "click", function () { switchSpeaker('主持人'); });
 
 // AI 自动识别说话人复选框
 var speakerAutoCheck = document.getElementById('speakerAutoCheck');
@@ -2600,21 +2619,31 @@ function updateAutoDetectState() {
   }
 }
 
-renderSessionFilters();
-renderSessions();
-renderOutline();
-renderQuestions();
-renderPersona();
-renderCompetitors();
-renderStrategies();
-renderKnowledge();
-updateProgress(progress);
-updateTimer();
-updateCaptureStatus(false, false);
-updateContextVisibility();
+// ===== 安全初始化：每个模块独立 try-catch，避免单个崩溃导致全部失效 =====
+(function initAll() {
+  function safeInit(name, fn) {
+    try { fn(); console.log('[init] ' + name + ' ✓'); return true; }
+    catch(e) { console.error('[init] ' + name + ' ✗ ' + e.message); return false; }
+  }
 
-// 加载 AI 分析配置
-loadAIConfig();
+  safeInit('renderSessionFilters',  function() { renderSessionFilters(); });
+  safeInit('renderSessions',        function() { renderSessions(); });
+  safeInit('renderOutline',         function() { renderOutline(); });
+  safeInit('renderQuestions',       function() { renderQuestions(); });
+  safeInit('renderPersona',         function() { renderPersona(); });
+  safeInit('renderCompetitors',     function() { renderCompetitors(); });
+  safeInit('renderStrategies',      function() { renderStrategies(); });
+  safeInit('renderKnowledge',       function() { renderKnowledge(); });
+  safeInit('updateProgress',        function() { updateProgress(progress); });
+  safeInit('updateTimer',           function() { updateTimer(); });
+  safeInit('updateCaptureStatus',   function() { updateCaptureStatus(false, false); });
+  safeInit('updateContextVisibility', function() { updateContextVisibility(); });
+
+  // 加载 AI 分析配置
+  safeInit('loadAIConfig',          function() { loadAIConfig(); });
+
+  console.log('[init] 全部初始化完成 ✓');
+})();
 
 // ===== 字体大小控制 =====
 (function initFontSizeControl() {
@@ -4081,9 +4110,12 @@ document.getElementById("surveyTypeFilter")?.addEventListener("change", renderSu
 window.removeQuestion = removeQuestion;
 
 // ===== 初始化定量调研模块 =====
-renderSurveys();
-renderUserSamples();
-renderSessions();
+(function initQuantModule() {
+  function _safe(name, fn) { try { fn(); console.log('[init] ' + name + ' ✓'); } catch(e) { console.error('[init] ' + name + ' ✗ ' + e.message); } }
+  _safe('renderSurveys', renderSurveys);
+  _safe('renderUserSamples', renderUserSamples);
+  _safe('renderSessions', renderSessions);
+})();
 
 // ===== 用户详情页功能 =====
 let currentDetailUser = null;
