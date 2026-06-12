@@ -2119,8 +2119,6 @@ function stopSpeechRecognition() {
   els.aiStatusDot.className = 'ai-status-dot';
 }
 
-// 是否启用 LLM 自动说话人识别（需要 API Key）
-let autoDetectSpeaker = false;
 // 上下文窗口（用于 LLM 判断说话人）
 let speakerContextWindow = [];
 
